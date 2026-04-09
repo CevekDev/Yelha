@@ -1,0 +1,119 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "features": "Fonctionnalités",
+    "pricing": "Tarifs",
+    "dashboard": "Tableau de bord",
+    "signIn": "Se connecter",
+    "signUp": "S'inscrire",
+    "signOut": "Se déconnecter"
+  },
+  "auth": {
+    "signIn": "Connexion",
+    "signUp": "Créer un compte",
+    "email": "Email",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "fullName": "Nom complet",
+    "forgotPassword": "Mot de passe oublié ?",
+    "rememberMe": "Se souvenir de moi",
+    "continueWithGoogle": "Continuer avec Google",
+    "continueWithApple": "Continuer avec Apple",
+    "acceptTerms": "J'accepte les conditions d'utilisation et la politique de confidentialité",
+    "alreadyHaveAccount": "Déjà un compte ?",
+    "noAccount": "Pas encore de compte ?",
+    "verifyEmail": "Vérifier votre email",
+    "verifyEmailDesc": "Nous avons envoyé un email de vérification à votre adresse. Veuillez vérifier votre boîte de réception.",
+    "resendEmail": "Renvoyer l'email",
+    "resetPassword": "Réinitialiser le mot de passe",
+    "newPassword": "Nouveau mot de passe",
+    "passwordStrength": {
+      "weak": "Faible",
+      "medium": "Moyen",
+      "strong": "Fort"
+    },
+    "errors": {
+      "emailNotVerified": "Veuillez vérifier votre email avant de vous connecter.",
+      "accountLocked": "Votre compte est temporairement bloqué. Réessayez dans 30 minutes.",
+      "invalidCredentials": "Email ou mot de passe incorrect.",
+      "emailExists": "Un compte avec cet email existe déjà."
+    }
+  },
+  "dashboard": {
+    "overview": "Vue d'ensemble",
+    "connections": "Connexions",
+    "tokens": "Jetons",
+    "settings": "Paramètres",
+    "messages": "Messages",
+    "analytics": "Analytiques",
+    "tokenBalance": "Solde de jetons",
+    "buyTokens": "Acheter des jetons",
+    "activeConnections": "Connexions actives",
+    "messagesToday": "Messages aujourd'hui",
+    "totalMessages": "Total des messages"
+  },
+  "connections": {
+    "title": "Mes connexions",
+    "add": "Ajouter une connexion",
+    "platform": "Plateforme",
+    "name": "Nom",
+    "status": "Statut",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "configure": "Configurer",
+    "delete": "Supprimer",
+    "whatsapp": "WhatsApp Business",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "telegram": "Telegram"
+  },
+  "botConfig": {
+    "identity": "Identité du bot",
+    "botName": "Nom du bot",
+    "businessName": "Nom de l'entreprise",
+    "personality": "Personnalité",
+    "formality": "Formalité",
+    "casual": "Décontracté",
+    "formal": "Formel",
+    "friendliness": "Amabilité",
+    "professional": "Professionnel",
+    "veryWarm": "Très chaleureux",
+    "responseLength": "Longueur des réponses",
+    "short": "Court",
+    "detailed": "Détaillé",
+    "emojiUsage": "Utilisation des emojis",
+    "none": "Aucun",
+    "frequent": "Fréquent",
+    "customInstructions": "Instructions personnalisées",
+    "predefinedMessages": "Messages prédéfinis",
+    "welcomeMessage": "Message de bienvenue",
+    "awayMessage": "Message d'absence",
+    "businessHours": "Heures d'ouverture"
+  },
+  "tokens": {
+    "balance": "Solde",
+    "purchase": "Acheter",
+    "history": "Historique",
+    "used": "Utilisés",
+    "purchased": "Achetés",
+    "tokens": "jetons"
+  },
+  "errors": {
+    "generic": "Une erreur s'est produite. Veuillez réessayer.",
+    "unauthorized": "Non autorisé",
+    "notFound": "Page non trouvée",
+    "rateLimited": "Trop de requêtes. Veuillez patienter."
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "loading": "Chargement...",
+    "success": "Succès",
+    "error": "Erreur",
+    "confirm": "Confirmer",
+    "back": "Retour"
+  }
+}

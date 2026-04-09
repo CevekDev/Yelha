@@ -1,0 +1,119 @@
+{
+  "nav": {
+    "home": "الرئيسية",
+    "features": "المميزات",
+    "pricing": "الأسعار",
+    "dashboard": "لوحة التحكم",
+    "signIn": "تسجيل الدخول",
+    "signUp": "إنشاء حساب",
+    "signOut": "تسجيل الخروج"
+  },
+  "auth": {
+    "signIn": "تسجيل الدخول",
+    "signUp": "إنشاء حساب",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "fullName": "الاسم الكامل",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "rememberMe": "تذكرني",
+    "continueWithGoogle": "المتابعة مع Google",
+    "continueWithApple": "المتابعة مع Apple",
+    "acceptTerms": "أوافق على شروط الخدمة وسياسة الخصوصية",
+    "alreadyHaveAccount": "لديك حساب بالفعل؟",
+    "noAccount": "ليس لديك حساب؟",
+    "verifyEmail": "تحقق من بريدك الإلكتروني",
+    "verifyEmailDesc": "أرسلنا بريدًا إلكترونيًا للتحقق إلى عنوانك. يرجى التحقق من صندوق الوارد.",
+    "resendEmail": "إعادة إرسال البريد الإلكتروني",
+    "resetPassword": "إعادة تعيين كلمة المرور",
+    "newPassword": "كلمة المرور الجديدة",
+    "passwordStrength": {
+      "weak": "ضعيف",
+      "medium": "متوسط",
+      "strong": "قوي"
+    },
+    "errors": {
+      "emailNotVerified": "يرجى التحقق من بريدك الإلكتروني قبل تسجيل الدخول.",
+      "accountLocked": "تم قفل حسابك مؤقتًا. حاول مرة أخرى بعد 30 دقيقة.",
+      "invalidCredentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+      "emailExists": "يوجد حساب بهذا البريد الإلكتروني بالفعل."
+    }
+  },
+  "dashboard": {
+    "overview": "نظرة عامة",
+    "connections": "الاتصالات",
+    "tokens": "الرصيد",
+    "settings": "الإعدادات",
+    "messages": "الرسائل",
+    "analytics": "التحليلات",
+    "tokenBalance": "رصيد الرموز",
+    "buyTokens": "شراء رموز",
+    "activeConnections": "الاتصالات النشطة",
+    "messagesToday": "رسائل اليوم",
+    "totalMessages": "إجمالي الرسائل"
+  },
+  "connections": {
+    "title": "اتصالاتي",
+    "add": "إضافة اتصال",
+    "platform": "المنصة",
+    "name": "الاسم",
+    "status": "الحالة",
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "configure": "تكوين",
+    "delete": "حذف",
+    "whatsapp": "واتساب للأعمال",
+    "instagram": "إنستغرام",
+    "facebook": "فيسبوك",
+    "telegram": "تيليغرام"
+  },
+  "botConfig": {
+    "identity": "هوية البوت",
+    "botName": "اسم البوت",
+    "businessName": "اسم العمل",
+    "personality": "الشخصية",
+    "formality": "الرسمية",
+    "casual": "غير رسمي",
+    "formal": "رسمي",
+    "friendliness": "الودية",
+    "professional": "مهني",
+    "veryWarm": "دافئ جدًا",
+    "responseLength": "طول الرد",
+    "short": "قصير",
+    "detailed": "مفصل",
+    "emojiUsage": "استخدام الرموز التعبيرية",
+    "none": "لا شيء",
+    "frequent": "متكرر",
+    "customInstructions": "تعليمات مخصصة",
+    "predefinedMessages": "الرسائل المحددة مسبقًا",
+    "welcomeMessage": "رسالة الترحيب",
+    "awayMessage": "رسالة الغياب",
+    "businessHours": "ساعات العمل"
+  },
+  "tokens": {
+    "balance": "الرصيد",
+    "purchase": "شراء",
+    "history": "السجل",
+    "used": "مستخدمة",
+    "purchased": "مشتراة",
+    "tokens": "رموز"
+  },
+  "errors": {
+    "generic": "حدث خطأ. يرجى المحاولة مرة أخرى.",
+    "unauthorized": "غير مصرح",
+    "notFound": "الصفحة غير موجودة",
+    "rateLimited": "طلبات كثيرة جدًا. يرجى الانتظار."
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "add": "إضافة",
+    "loading": "جار التحميل...",
+    "success": "نجح",
+    "error": "خطأ",
+    "confirm": "تأكيد",
+    "back": "رجوع"
+  }
+}

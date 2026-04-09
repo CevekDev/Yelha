@@ -1,0 +1,119 @@
+{
+  "nav": {
+    "home": "Home",
+    "features": "Features",
+    "pricing": "Pricing",
+    "dashboard": "Dashboard",
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Create Account",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "fullName": "Full Name",
+    "forgotPassword": "Forgot password?",
+    "rememberMe": "Remember me",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithApple": "Continue with Apple",
+    "acceptTerms": "I accept the terms of service and privacy policy",
+    "alreadyHaveAccount": "Already have an account?",
+    "noAccount": "Don't have an account?",
+    "verifyEmail": "Verify your email",
+    "verifyEmailDesc": "We sent a verification email to your address. Please check your inbox.",
+    "resendEmail": "Resend email",
+    "resetPassword": "Reset Password",
+    "newPassword": "New Password",
+    "passwordStrength": {
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong"
+    },
+    "errors": {
+      "emailNotVerified": "Please verify your email before signing in.",
+      "accountLocked": "Your account is temporarily locked. Try again in 30 minutes.",
+      "invalidCredentials": "Invalid email or password.",
+      "emailExists": "An account with this email already exists."
+    }
+  },
+  "dashboard": {
+    "overview": "Overview",
+    "connections": "Connections",
+    "tokens": "Tokens",
+    "settings": "Settings",
+    "messages": "Messages",
+    "analytics": "Analytics",
+    "tokenBalance": "Token Balance",
+    "buyTokens": "Buy Tokens",
+    "activeConnections": "Active Connections",
+    "messagesToday": "Messages Today",
+    "totalMessages": "Total Messages"
+  },
+  "connections": {
+    "title": "My Connections",
+    "add": "Add Connection",
+    "platform": "Platform",
+    "name": "Name",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "configure": "Configure",
+    "delete": "Delete",
+    "whatsapp": "WhatsApp Business",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "telegram": "Telegram"
+  },
+  "botConfig": {
+    "identity": "Bot Identity",
+    "botName": "Bot Name",
+    "businessName": "Business Name",
+    "personality": "Personality",
+    "formality": "Formality",
+    "casual": "Casual",
+    "formal": "Formal",
+    "friendliness": "Friendliness",
+    "professional": "Professional",
+    "veryWarm": "Very Warm",
+    "responseLength": "Response Length",
+    "short": "Short",
+    "detailed": "Detailed",
+    "emojiUsage": "Emoji Usage",
+    "none": "None",
+    "frequent": "Frequent",
+    "customInstructions": "Custom Instructions",
+    "predefinedMessages": "Predefined Messages",
+    "welcomeMessage": "Welcome Message",
+    "awayMessage": "Away Message",
+    "businessHours": "Business Hours"
+  },
+  "tokens": {
+    "balance": "Balance",
+    "purchase": "Purchase",
+    "history": "History",
+    "used": "Used",
+    "purchased": "Purchased",
+    "tokens": "tokens"
+  },
+  "errors": {
+    "generic": "An error occurred. Please try again.",
+    "unauthorized": "Unauthorized",
+    "notFound": "Page not found",
+    "rateLimited": "Too many requests. Please wait."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "loading": "Loading...",
+    "success": "Success",
+    "error": "Error",
+    "confirm": "Confirm",
+    "back": "Back"
+  }
+}
