@@ -6,9 +6,11 @@ const MAX_MESSAGES = 100;
 /** Nombre de messages d'historique passés à l'IA */
 const HISTORY_MESSAGES = 20;
 
+/** Score spam à partir duquel on flag la conversation */
+const SPAM_THRESHOLD = 3;
+
 /**
  * Supprime les messages les plus anciens si la conversation dépasse MAX_MESSAGES.
- * Appelé après chaque sauvegarde de message.
  */
 export async function pruneMessages(conversationId: string): Promise<void> {
   const count = await prisma.message.count({ where: { conversationId } });
@@ -30,6 +32,28 @@ export async function pruneMessages(conversationId: string): Promise<void> {
 }
 
 /**
+ * Incrémente le score spam. Si le seuil est atteint, flag needsHelp et suspend la conv.
+ * Retourne true si la conversation doit être bloquée.
+ */
+export async function handleSpam(conversationId: string): Promise<boolean> {
+  const conv = await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { spamScore: { increment: 1 } },
+    select: { spamScore: true, needsHelp: true },
+  });
+
+  if (conv.spamScore >= SPAM_THRESHOLD && !conv.needsHelp) {
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { needsHelp: true },
+    });
+    return true;
+  }
+
+  return conv.spamScore >= SPAM_THRESHOLD;
+}
+
+/**
  * Récupère ou crée un ContactContext pour un contact donné.
  */
 export async function upsertContactContext(
@@ -42,7 +66,6 @@ export async function upsertContactContext(
     metadata?: Record<string, any> | null;
   } = {}
 ) {
-  // Filtrer les valeurs undefined pour ne pas écraser des données existantes
   const cleanUpdate = Object.fromEntries(
     Object.entries(update).filter(([, v]) => v !== undefined)
   );
@@ -98,7 +121,6 @@ export async function getRecentHistory(
     select: { direction: true, content: true },
   });
 
-  // Inverser pour ordre chronologique et mapper vers format DeepSeek
   return messages
     .reverse()
     .map((m) => ({
@@ -108,7 +130,7 @@ export async function getRecentHistory(
 }
 
 /**
- * Sauvegarde un échange (inbound + outbound) et élaguer si nécessaire.
+ * Sauvegarde un échange (inbound + outbound) et élague si nécessaire.
  */
 export async function saveMessageExchange(opts: {
   conversationId: string;
@@ -141,8 +163,30 @@ export async function saveMessageExchange(opts: {
     data: { lastMessage: new Date(), isNew: false },
   });
 
-  // Élagage asynchrone — ne bloque pas la réponse
   pruneMessages(conversationId).catch(console.error);
+}
+
+/**
+ * Sauvegarde un message inbound sans réponse (ex: message bloqué).
+ */
+export async function saveInboundOnly(opts: {
+  conversationId: string;
+  content: string;
+  type: string;
+}): Promise<void> {
+  await prisma.message.create({
+    data: {
+      conversationId: opts.conversationId,
+      direction: 'inbound',
+      content: opts.content,
+      type: opts.type,
+      tokensUsed: 0,
+    },
+  });
+  await prisma.conversation.update({
+    where: { id: opts.conversationId },
+    data: { lastMessage: new Date() },
+  });
 }
 
 /**
@@ -178,4 +222,20 @@ export async function getOrCreateConversation(opts: {
   }
 
   return conversation;
+}
+
+/**
+ * Enregistre un coût API estimé.
+ * DeepSeek text: ~$0.000154 par message (800 tokens avg)
+ * Whisper: ~$0.003 par message vocal (30s avg)
+ */
+export async function logCost(userId: string, type: 'deepseek_text' | 'deepseek_voice' | 'whisper'): Promise<void> {
+  const costMap = {
+    deepseek_text: 0.000154,
+    deepseek_voice: 0.000154,
+    whisper: 0.003,
+  };
+  await prisma.costLog.create({
+    data: { userId, type, estimatedCost: costMap[type] },
+  }).catch(() => {}); // Ne jamais bloquer le bot pour un log
 }

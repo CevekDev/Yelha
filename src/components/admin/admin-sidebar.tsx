@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
-  LayoutDashboard, Users, TrendingUp, Tag, Settings,
-  LogOut, Bot, Shield, BarChart3,
+  LayoutDashboard, Users, Tag, Settings,
+  LogOut, Bot, Shield, BarChart3, Calculator,
 } from 'lucide-react';
 import { signOut, useSession } from 'next-auth/react';
 
@@ -19,6 +19,7 @@ export function AdminSidebar() {
   const navItems = [
     { href: `/${locale}/admin`, label: "Vue d'ensemble", icon: LayoutDashboard, exact: true },
     { href: `/${locale}/admin/users`, label: 'Utilisateurs', icon: Users, exact: false },
+    { href: `/${locale}/admin/accounting`, label: 'Comptabilité', icon: Calculator, exact: false },
     { href: `/${locale}/admin/promo`, label: 'Codes promo', icon: Tag, exact: false },
     { href: `/${locale}/admin/settings`, label: 'Paramètres', icon: Settings, exact: false },
   ];
