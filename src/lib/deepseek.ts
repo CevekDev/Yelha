@@ -31,6 +31,19 @@ export async function callDeepSeek(
   return data.choices[0]?.message?.content || '';
 }
 
+const PERSONALITY_PRESETS: Record<string, string> = {
+  professional:
+    'Sois formel, courtois et précis. Utilise un langage professionnel et soigné. Évite le langage familier.',
+  friendly:
+    'Sois chaleureux, accessible et bienveillant. Fais sentir au client qu\'il est le bienvenu. Utilise un ton décontracté mais respectueux.',
+  commercial:
+    'Sois persuasif et orienté vers la vente. Mets en avant les avantages des produits, encourage l\'achat et propose des alternatives si besoin.',
+  formal:
+    'Adopte un ton institutionnel et sérieux. Utilise un vocabulaire soutenu, évite toute familiarité.',
+  casual:
+    'Parle naturellement, comme un ami serviable. Sois simple, direct et sympa.',
+};
+
 export function buildSystemPrompt(params: {
   botName: string;
   businessName: string;
@@ -38,6 +51,8 @@ export function buildSystemPrompt(params: {
   predefinedResponses: string;
   customInstructions: string;
   globalPrompt: string;
+  contactContext?: string;
+  detailResponses?: string;
 }): string {
   const {
     botName,
@@ -46,24 +61,49 @@ export function buildSystemPrompt(params: {
     predefinedResponses,
     customInstructions,
     globalPrompt,
+    contactContext = '',
+    detailResponses = '',
   } = params;
 
   let personalityDesc = '';
+
   if (botPersonality) {
-    const { formality, friendliness, responseLength, emojiUsage } = botPersonality;
-    if (formality <= 3) personalityDesc += 'Be casual and relaxed in your tone. ';
-    else if (formality >= 8) personalityDesc += 'Be formal and professional. ';
-    if (friendliness >= 8) personalityDesc += 'Be very warm, friendly and empathetic. ';
-    if (responseLength <= 3) personalityDesc += 'Keep responses very brief and concise. ';
-    else if (responseLength >= 8) personalityDesc += 'Give detailed and comprehensive responses. ';
-    if (emojiUsage >= 7) personalityDesc += 'Use emojis frequently to make responses engaging. ';
-    else if (emojiUsage <= 2) personalityDesc += 'Avoid using emojis. ';
+    // Nouveau format : { preset: string, custom: string }
+    if (typeof botPersonality.preset === 'string' || typeof botPersonality.custom === 'string') {
+      if (botPersonality.custom?.trim()) {
+        personalityDesc = botPersonality.custom.trim();
+      } else if (botPersonality.preset && PERSONALITY_PRESETS[botPersonality.preset]) {
+        personalityDesc = PERSONALITY_PRESETS[botPersonality.preset];
+      }
+    } else {
+      // Ancien format : { formality, friendliness, responseLength, emojiUsage }
+      const { formality, friendliness, responseLength, emojiUsage } = botPersonality;
+      if (formality <= 3) personalityDesc += 'Be casual and relaxed in your tone. ';
+      else if (formality >= 8) personalityDesc += 'Be formal and professional. ';
+      if (friendliness >= 8) personalityDesc += 'Be very warm, friendly and empathetic. ';
+      if (responseLength <= 3) personalityDesc += 'Keep responses very brief and concise. ';
+      else if (responseLength >= 8) personalityDesc += 'Give detailed and comprehensive responses. ';
+      if (emojiUsage >= 7) personalityDesc += 'Use emojis frequently to make responses engaging. ';
+      else if (emojiUsage <= 2) personalityDesc += 'Avoid using emojis. ';
+    }
   }
 
-  return globalPrompt
+  // Construire les sections optionnelles
+  const detailSection = detailResponses
+    ? `\n\nRÉPONSES DÉTAILLÉES CONTEXTUELLES (adapte le style mais garde toujours ces informations exactes) :\n${detailResponses}`
+    : '';
+
+  const contextSection = contactContext || '';
+
+  let prompt = globalPrompt
     .replace('{botName}', botName)
     .replace('{businessName}', businessName)
     .replace('{botPersonality}', personalityDesc)
-    .replace('{predefinedResponses}', predefinedResponses || 'None')
-    .replace('{customInstructions}', customInstructions || 'None');
+    .replace('{predefinedResponses}', predefinedResponses || 'Aucune')
+    .replace('{customInstructions}', customInstructions || 'Aucune');
+
+  prompt += detailSection;
+  prompt += contextSection;
+
+  return prompt;
 }

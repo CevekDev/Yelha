@@ -182,6 +182,24 @@ model Connection {
   botCommands          BotCommand[]
   orders               Order[]
   detailResponses      BotDetailResponse[]
+  contactContexts      ContactContext[]
+}
+
+model ContactContext {
+  id           String    @id @default(cuid())
+  connectionId String
+  contactId    String
+  contactName  String?
+  wilaya       String?
+  notes        String?   @db.Text
+  metadata     Json?
+  lastSeenAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, contactId])
 }
 
 model PredefinedMessage {

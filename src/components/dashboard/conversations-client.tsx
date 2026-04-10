@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { MessageSquare, Bot, Search, User, Send, Plug } from 'lucide-react';
+import { useState, useEffect, useTransition } from 'react';
+import { MessageSquare, Bot, Search, User, Send, Plug, RefreshCw, MapPin, FileText, Edit2, Check, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -44,6 +44,13 @@ type Connection = {
   conversations: Conversation[];
 };
 
+type ContactContext = {
+  contactName: string | null;
+  wilaya: string | null;
+  notes: string | null;
+  lastSeenAt: Date;
+};
+
 export default function ConversationsClient({ connections }: { connections: Connection[] }) {
   const params = useParams();
   const locale = params.locale as string;
@@ -54,13 +61,79 @@ export default function ConversationsClient({ connections }: { connections: Conn
     connections[0]?.conversations[0] || null
   );
   const [search, setSearch] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [contactCtx, setContactCtx] = useState<ContactContext | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [showContextPanel, setShowContextPanel] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  // Editable context fields
+  const [editNotes, setEditNotes] = useState('');
+  const [editWilaya, setEditWilaya] = useState('');
+  const [editingContext, setEditingContext] = useState(false);
+
+  const totalConvs = connections.reduce((acc, c) => acc + c.conversations.length, 0);
 
   const filteredConvs = (selectedConnection?.conversations || []).filter((c) => {
     const name = c.contactName || c.contactId;
     return name.toLowerCase().includes(search.toLowerCase());
   });
 
-  const totalConvs = connections.reduce((acc, c) => acc + c.conversations.length, 0);
+  // Charger les messages d'une conversation
+  const loadMessages = async (convId: string, connectionId: string, contactId: string) => {
+    setLoadingMessages(true);
+    try {
+      const [msgRes, ctxRes] = await Promise.all([
+        fetch(`/api/conversations/${convId}/messages`),
+        fetch(`/api/conversations/context?connectionId=${connectionId}&contactId=${encodeURIComponent(contactId)}`),
+      ]);
+      if (msgRes.ok) {
+        const data = await msgRes.json();
+        setMessages(data);
+      }
+      if (ctxRes.ok) {
+        const ctx = await ctxRes.json();
+        setContactCtx(ctx);
+        setEditNotes(ctx?.notes || '');
+        setEditWilaya(ctx?.wilaya || '');
+      } else {
+        setContactCtx(null);
+        setEditNotes('');
+        setEditWilaya('');
+      }
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedConv && selectedConnection) {
+      loadMessages(selectedConv.id, selectedConnection.id, selectedConv.contactId);
+    }
+  }, [selectedConv?.id]);
+
+  const handleSaveContext = () => {
+    if (!selectedConv || !selectedConnection) return;
+    startTransition(async () => {
+      const res = await fetch('/api/conversations/context', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connectionId: selectedConnection.id,
+          contactId: selectedConv.contactId,
+          wilaya: editWilaya.trim() || null,
+          notes: editNotes.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setContactCtx(updated);
+        setEditingContext(false);
+      }
+    });
+  };
 
   if (connections.length === 0) {
     return (
@@ -73,7 +146,7 @@ export default function ConversationsClient({ connections }: { connections: Conn
         </div>
         <h3 className="font-mono font-bold text-white text-lg mb-2">Aucun bot connecté</h3>
         <p className="font-mono text-sm text-white/40 mb-6">
-          Connectez votre premier bot pour voir les conversations ici
+          Connectez votre premier bot Telegram pour voir les conversations ici
         </p>
         <Link
           href={`/${locale}/dashboard/connections`}
@@ -89,18 +162,17 @@ export default function ConversationsClient({ connections }: { connections: Conn
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Stats row */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Bots actifs', value: connections.length },
           { label: 'Conversations', value: totalConvs },
           {
-            label: 'Aujourd\'hui',
+            label: "Aujourd'hui",
             value: connections
               .flatMap((c) => c.conversations)
               .filter(
-                (c) =>
-                  new Date(c.lastMessage).toDateString() === new Date().toDateString()
+                (c) => new Date(c.lastMessage).toDateString() === new Date().toDateString()
               ).length,
           },
         ].map((stat) => (
@@ -117,9 +189,9 @@ export default function ConversationsClient({ connections }: { connections: Conn
       {/* Main panel */}
       <div className="grid grid-cols-12 gap-4 h-[600px]">
         {/* Bot selector */}
-        <div className="col-span-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden">
+        <div className="col-span-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden">
           <div className="p-3 border-b border-white/[0.06]">
-            <p className="font-mono text-xs font-semibold text-white/30 uppercase tracking-wider">Bots</p>
+            <p className="font-mono text-[10px] font-semibold text-white/30 uppercase tracking-wider">Bots</p>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {connections.map((conn) => (
@@ -127,21 +199,21 @@ export default function ConversationsClient({ connections }: { connections: Conn
                 key={conn.id}
                 onClick={() => {
                   setSelectedConnection(conn);
-                  setSelectedConv(conn.conversations[0] || null);
+                  const first = conn.conversations[0] || null;
+                  setSelectedConv(first);
+                  setMessages([]);
                 }}
-                className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all ${
-                  selectedConnection?.id === conn.id
-                    ? 'text-white'
-                    : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04]'
+                className={`w-full flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center transition-all ${
+                  selectedConnection?.id === conn.id ? '' : 'hover:bg-white/[0.04]'
                 }`}
                 style={
                   selectedConnection?.id === conn.id
-                    ? { background: `${ORANGE}15`, color: ORANGE }
+                    ? { background: `${ORANGE}15` }
                     : {}
                 }
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-mono font-bold"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-mono font-bold"
                   style={{
                     background: selectedConnection?.id === conn.id ? `${ORANGE}30` : 'rgba(255,255,255,0.06)',
                     color: selectedConnection?.id === conn.id ? ORANGE : 'rgba(255,255,255,0.4)',
@@ -149,19 +221,22 @@ export default function ConversationsClient({ connections }: { connections: Conn
                 >
                   {conn.platform === 'TELEGRAM' ? 'TG' : 'WA'}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-mono text-xs font-semibold truncate">{conn.name}</p>
-                  <p className="font-mono text-[10px] text-white/30 truncate">
-                    {conn.conversations.length} conv.
-                  </p>
-                </div>
+                <p
+                  className="font-mono text-[10px] font-semibold truncate w-full"
+                  style={{ color: selectedConnection?.id === conn.id ? ORANGE : 'rgba(255,255,255,0.4)' }}
+                >
+                  {conn.name}
+                </p>
+                <p className="font-mono text-[9px] text-white/20">
+                  {conn.conversations.length} conv.
+                </p>
               </button>
             ))}
           </div>
         </div>
 
         {/* Conversation list */}
-        <div className="col-span-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden">
+        <div className="col-span-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden">
           <div className="p-3 border-b border-white/[0.06]">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
@@ -188,9 +263,7 @@ export default function ConversationsClient({ connections }: { connections: Conn
                     key={conv.id}
                     onClick={() => setSelectedConv(conv)}
                     className={`w-full flex items-start gap-3 px-4 py-3 text-left border-b border-white/[0.04] transition-all ${
-                      selectedConv?.id === conv.id
-                        ? 'bg-white/[0.05]'
-                        : 'hover:bg-white/[0.03]'
+                      selectedConv?.id === conv.id ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]'
                     }`}
                   >
                     <div
@@ -204,7 +277,7 @@ export default function ConversationsClient({ connections }: { connections: Conn
                         <p className="font-mono text-xs font-semibold text-white truncate">
                           {conv.contactName || conv.contactId}
                         </p>
-                        <span className="font-mono text-[10px] text-white/20 ml-2 flex-shrink-0">
+                        <span className="font-mono text-[10px] text-white/20 ml-1 flex-shrink-0">
                           {formatRelative(new Date(conv.lastMessage))}
                         </span>
                       </div>
@@ -234,19 +307,187 @@ export default function ConversationsClient({ connections }: { connections: Conn
                 >
                   {(selectedConv.contactName || selectedConv.contactId)[0]?.toUpperCase() || '?'}
                 </div>
-                <div>
-                  <p className="font-mono text-sm font-semibold text-white">
+                <div className="flex-1 min-w-0">
+                  <p className="font-mono text-sm font-semibold text-white truncate">
                     {selectedConv.contactName || selectedConv.contactId}
                   </p>
-                  <p className="font-mono text-xs text-white/30">
-                    {selectedConnection?.platform === 'TELEGRAM' ? 'Telegram' : 'WhatsApp'}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    {contactCtx?.wilaya && (
+                      <span className="font-mono text-[10px] text-white/30 flex items-center gap-1">
+                        <MapPin className="w-2.5 h-2.5" />
+                        {contactCtx.wilaya}
+                      </span>
+                    )}
+                    <span className="font-mono text-[10px] text-white/20">
+                      {selectedConnection?.platform === 'TELEGRAM' ? 'Telegram' : 'WhatsApp'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setShowContextPanel(!showContextPanel)}
+                    className={`p-1.5 rounded-lg transition-all ${
+                      showContextPanel
+                        ? 'text-white'
+                        : 'text-white/30 hover:text-white hover:bg-white/[0.06]'
+                    }`}
+                    style={showContextPanel ? { background: `${ORANGE}20`, color: ORANGE } : {}}
+                    title="Profil client"
+                  >
+                    <FileText className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() =>
+                      selectedConv &&
+                      selectedConnection &&
+                      loadMessages(selectedConv.id, selectedConnection.id, selectedConv.contactId)
+                    }
+                    className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06] transition-all"
+                    title="Rafraîchir"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingMessages ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
               </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col-reverse">
-                <ConversationMessages convId={selectedConv.id} />
+              <div className="flex-1 flex overflow-hidden">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col">
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div
+                        className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
+                        style={{ borderColor: `${ORANGE}40`, borderTopColor: ORANGE }}
+                      />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="font-mono text-xs text-white/20">Aucun message</p>
+                    </div>
+                  ) : (
+                    messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${
+                            msg.direction === 'outbound'
+                              ? 'rounded-tr-sm'
+                              : 'rounded-tl-sm bg-white/[0.06] text-white/80'
+                          }`}
+                          style={
+                            msg.direction === 'outbound'
+                              ? { background: `${ORANGE}25` }
+                              : {}
+                          }
+                        >
+                          {msg.type === 'voice' && (
+                            <p className="font-mono text-[10px] text-white/30 mb-1">🎤 Vocal transcrit</p>
+                          )}
+                          {msg.type === 'image' && (
+                            <p className="font-mono text-[10px] text-white/30 mb-1">🖼️ Image</p>
+                          )}
+                          <p className="font-mono text-xs leading-relaxed text-white/80">{msg.content}</p>
+                          <p className="font-mono text-[9px] text-white/20 mt-1 text-right">
+                            {new Date(msg.createdAt).toLocaleTimeString('fr-DZ', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {msg.tokensUsed > 0 && ` · ${msg.tokensUsed}t`}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Context panel */}
+                {showContextPanel && (
+                  <div className="w-52 border-l border-white/[0.06] p-3 overflow-y-auto flex-shrink-0">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-mono text-[10px] font-semibold text-white/30 uppercase tracking-wider">
+                        Profil client
+                      </p>
+                      {!editingContext ? (
+                        <button
+                          onClick={() => setEditingContext(true)}
+                          className="p-1 rounded text-white/20 hover:text-white/50 transition-all"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                      ) : (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={handleSaveContext}
+                            disabled={isPending}
+                            className="p-1 rounded text-green-400 hover:text-green-300 transition-all"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => setEditingContext(false)}
+                            className="p-1 rounded text-white/20 hover:text-white/50 transition-all"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-mono text-[9px] text-white/20 uppercase mb-1">Nom</p>
+                        <p className="font-mono text-xs text-white/60">
+                          {contactCtx?.contactName || selectedConv.contactName || selectedConv.contactId}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-mono text-[9px] text-white/20 uppercase mb-1">Wilaya</p>
+                        {editingContext ? (
+                          <input
+                            type="text"
+                            value={editWilaya}
+                            onChange={(e) => setEditWilaya(e.target.value)}
+                            placeholder="Ex: Alger"
+                            className="w-full px-2 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[11px] font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
+                          />
+                        ) : (
+                          <p className="font-mono text-xs text-white/60">
+                            {contactCtx?.wilaya || '—'}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="font-mono text-[9px] text-white/20 uppercase mb-1">Notes</p>
+                        {editingContext ? (
+                          <textarea
+                            value={editNotes}
+                            onChange={(e) => setEditNotes(e.target.value)}
+                            placeholder="Infos utiles sur ce client..."
+                            rows={4}
+                            className="w-full px-2 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[11px] font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40 resize-none"
+                          />
+                        ) : (
+                          <p className="font-mono text-[11px] text-white/50 leading-relaxed">
+                            {contactCtx?.notes || '—'}
+                          </p>
+                        )}
+                      </div>
+
+                      {contactCtx?.lastSeenAt && (
+                        <div>
+                          <p className="font-mono text-[9px] text-white/20 uppercase mb-1">Dernière activité</p>
+                          <p className="font-mono text-[10px] text-white/30">
+                            {formatRelative(new Date(contactCtx.lastSeenAt))}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Read-only notice */}
@@ -254,7 +495,7 @@ export default function ConversationsClient({ connections }: { connections: Conn
                 <div className="flex items-center gap-2 bg-white/[0.03] rounded-xl px-4 py-2.5">
                   <Send className="w-4 h-4 text-white/10" />
                   <span className="font-mono text-xs text-white/20">
-                    Vue lecture seule — répondez directement via Telegram
+                    Vue lecture seule — les clients répondent via {selectedConnection?.platform === 'TELEGRAM' ? 'Telegram' : 'WhatsApp'}
                   </span>
                 </div>
               </div>
@@ -269,18 +510,6 @@ export default function ConversationsClient({ connections }: { connections: Conn
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function ConversationMessages({ convId }: { convId: string }) {
-  // In a real implementation this would fetch messages via API or use a server component
-  // For now we show a placeholder since messages are loaded server-side in the parent
-  return (
-    <div className="text-center py-8">
-      <p className="font-mono text-xs text-white/20">
-        Chargement des messages...
-      </p>
     </div>
   );
 }

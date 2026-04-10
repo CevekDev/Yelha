@@ -3,7 +3,13 @@ import { prisma } from '@/lib/prisma';
 import { sendWhatsAppMessage, validateTwilioRequest } from '@/lib/twilio';
 import { callDeepSeek, buildSystemPrompt } from '@/lib/deepseek';
 import { transcribeAudio } from '@/lib/whisper';
-import { prisma as db } from '@/lib/prisma';
+import {
+  getOrCreateConversation,
+  upsertContactContext,
+  buildContactContextString,
+  getRecentHistory,
+  saveMessageExchange,
+} from '@/lib/messages';
 
 // Twilio sends form-encoded bodies, not JSON
 function parseFormBody(body: string): Record<string, string> {
@@ -15,7 +21,6 @@ function parseFormBody(body: string): Record<string, string> {
   return params;
 }
 
-// Empty TwiML response — Twilio requires this format
 const TWIML_OK = `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`;
 
 export async function POST(req: NextRequest) {
@@ -32,16 +37,18 @@ export async function POST(req: NextRequest) {
     return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  const from: string = params.From ?? ''; // e.g. "whatsapp:+213xxxxxxxxx"
+  const from: string = params.From ?? '';
   const body: string = params.Body ?? '';
   const mediaUrl: string = params.MediaUrl0 ?? '';
   const mediaContentType: string = params.MediaContentType0 ?? '';
   const numMedia = parseInt(params.NumMedia ?? '0', 10);
+  const profileName: string = params.ProfileName ?? '';
 
-  // Extract plain number from whatsapp:+213...
+  // Numéro sans le préfixe whatsapp:
   const phoneNumber = from.replace('whatsapp:', '');
+  const contactId = phoneNumber;
+  const contactName = profileName || null;
 
-  // Find connection linked to this WhatsApp number
   const connection = await prisma.connection.findFirst({
     where: {
       platform: 'WHATSAPP',
@@ -50,11 +57,11 @@ export async function POST(req: NextRequest) {
     },
     include: {
       predefinedMessages: { where: { isActive: true }, orderBy: { priority: 'asc' } },
+      detailResponses: { where: { isActive: true } },
     },
   });
 
   if (!connection) {
-    // No connection found — silently ignore
     return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
   }
 
@@ -63,7 +70,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  // Check business hours
+  // Vérifier les heures d'ouverture
   const now = new Date();
   if (
     connection.businessHours &&
@@ -77,82 +84,111 @@ export async function POST(req: NextRequest) {
 
   let responseText = '';
   let tokensRequired = 1;
+  let messageType: 'text' | 'voice' | 'image' = 'text';
+  let inboundContent = body;
 
   const isVoice =
     numMedia > 0 &&
     (mediaContentType.startsWith('audio/') || mediaContentType === 'application/ogg');
-
   const isImage = numMedia > 0 && mediaContentType.startsWith('image/');
 
+  // ── Voice ────────────────────────────────────────────────────────────────
   if (isVoice && mediaUrl) {
+    messageType = 'voice';
     tokensRequired = 2;
-    if (user.tokenBalance < 2) {
-      await sendWhatsAppMessage(from, 'Solde de jetons insuffisant. Veuillez recharger votre compte.');
+    if (!user.unlimitedTokens && user.tokenBalance < 2) {
+      await sendWhatsAppMessage(from, '⚠️ Solde insuffisant pour traiter un message vocal.');
       return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
     }
-
     try {
       const audioRes = await fetch(mediaUrl, {
         headers: {
           Authorization:
             'Basic ' +
-            Buffer.from(
-              `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`
-            ).toString('base64'),
+            Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64'),
         },
       });
       const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
-      const mimeType = mediaContentType || 'audio/ogg';
-      const transcript = await transcribeAudio(audioBuffer, mimeType);
-      const systemPrompt = await buildConnectionSystemPrompt(connection);
-      responseText = await callDeepSeek(
-        [{ role: 'user', content: `[Message vocal transcrit]: ${transcript}` }],
-        systemPrompt
-      );
+      const transcript = await transcribeAudio(audioBuffer, mediaContentType || 'audio/ogg');
+      if (!transcript) {
+        return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
+      }
+      inboundContent = `[Vocal]: ${transcript}`;
     } catch (err) {
-      console.error('[Twilio webhook] Voice transcription error', err);
-      responseText = "Je n'ai pas pu traiter votre message vocal. Pouvez-vous l'envoyer en texte ?";
-      tokensRequired = 0;
-    }
-  } else if (isImage) {
-    tokensRequired = 1;
-    if (user.tokenBalance < 1) {
-      await sendWhatsAppMessage(from, 'Solde de jetons insuffisant.');
+      console.error('[Twilio] Voice transcription error', err);
+      await sendWhatsAppMessage(from, "Je n'ai pas pu traiter votre message vocal. Essayez en texte.");
       return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
     }
-    const systemPrompt = await buildConnectionSystemPrompt(connection);
-    responseText = await callDeepSeek(
-      [{ role: 'user', content: "[Image reçue] Veuillez accuser réception et demander comment vous pouvez aider." }],
-      systemPrompt
-    );
-  } else if (body.trim()) {
-    // Text message
+  }
+
+  // ── Image ────────────────────────────────────────────────────────────────
+  else if (isImage) {
+    messageType = 'image';
+    inboundContent = '[Image reçue]';
+  }
+
+  // ── Text ─────────────────────────────────────────────────────────────────
+  else if (!body.trim()) {
+    return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
+  }
+
+  // ── Vérifier solde tokens ─────────────────────────────────────────────────
+  if (tokensRequired > 0 && !user.unlimitedTokens && user.tokenBalance < tokensRequired) {
+    await sendWhatsAppMessage(from, '⚠️ Solde de jetons insuffisant. Rechargez votre compte sur Yelha.');
+    return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
+  }
+
+  // ── Vérifier réponses prédéfinies (texte uniquement) ─────────────────────
+  if (messageType === 'text') {
     const predefined = findPredefinedResponse(connection.predefinedMessages, body);
     if (predefined) {
       responseText = predefined;
       tokensRequired = 0;
-    } else {
-      if (user.tokenBalance < 1) {
-        await sendWhatsAppMessage(from, 'Solde de jetons insuffisant. Veuillez recharger votre compte.');
-        return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
-      }
-      const systemPrompt = await buildConnectionSystemPrompt(connection);
-      responseText = await callDeepSeek([{ role: 'user', content: body }], systemPrompt);
     }
+  }
+
+  // ── Appel IA si pas de réponse prédéfinie ────────────────────────────────
+  if (!responseText) {
+    // Contexte contact
+    const contactCtx = await prisma.contactContext.findUnique({
+      where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+    });
+
+    // Conversation + historique
+    const conversation = await getOrCreateConversation({
+      connectionId: connection.id,
+      contactId,
+      platform: 'WHATSAPP',
+      contactName,
+    });
+
+    const history = await getRecentHistory(conversation.id);
+
+    const systemPrompt = await buildConnectionSystemPrompt(
+      connection,
+      buildContactContextString(contactCtx)
+    );
+
+    const aiMessages = [
+      ...history,
+      { role: 'user' as const, content: inboundContent },
+    ];
+
+    responseText = await callDeepSeek(aiMessages, systemPrompt);
   }
 
   if (!responseText) {
     return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  // Deduct tokens atomically
-  if (tokensRequired > 0) {
+  // ── Débiter les tokens ────────────────────────────────────────────────────
+  if (tokensRequired > 0 && !user.unlimitedTokens) {
     const updated = await prisma.user.updateMany({
       where: { id: connection.userId, tokenBalance: { gte: tokensRequired } },
       data: { tokenBalance: { decrement: tokensRequired } },
     });
     if (updated.count === 0) {
-      await sendWhatsAppMessage(from, 'Solde de jetons insuffisant.');
+      await sendWhatsAppMessage(from, '⚠️ Solde de jetons insuffisant.');
       return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
     }
     const updatedUser = await prisma.user.findUnique({ where: { id: connection.userId } });
@@ -162,67 +198,59 @@ export async function POST(req: NextRequest) {
         type: 'USAGE',
         amount: -tokensRequired,
         balance: updatedUser!.tokenBalance,
-        description: `Message WhatsApp (Twilio) traité`,
+        description: `WhatsApp — ${messageType}`,
       },
     });
   }
 
-  // Log the message
+  // ── Envoyer la réponse ────────────────────────────────────────────────────
+  await sendWhatsAppMessage(from, responseText);
+
+  // ── Sauvegarder les messages + élagage ───────────────────────────────────
   try {
-    let conversation = await prisma.conversation.findFirst({
-      where: { connectionId: connection.id, contactId: phoneNumber },
+    const conversation = await getOrCreateConversation({
+      connectionId: connection.id,
+      contactId,
+      platform: 'WHATSAPP',
+      contactName,
     });
-    if (!conversation) {
-      conversation = await prisma.conversation.create({
-        data: {
-          connectionId: connection.id,
-          externalId: phoneNumber,
-          platform: 'WHATSAPP',
-          contactId: phoneNumber,
-        },
-      });
-    }
-    await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: 'inbound',
-        content: body || '[media]',
-        type: isVoice ? 'voice' : isImage ? 'image' : 'text',
+
+    await saveMessageExchange({
+      conversationId: conversation.id,
+      inbound: {
+        content: inboundContent,
+        type: messageType,
         tokensUsed: tokensRequired,
       },
+      outbound: { content: responseText },
     });
-    await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: 'outbound',
-        content: responseText,
-        type: 'text',
-        tokensUsed: 0,
-      },
-    });
-    await prisma.conversation.update({
-      where: { id: conversation.id },
-      data: { lastMessage: new Date() },
-    });
-  } catch (logErr) {
-    console.error('[Twilio webhook] Message log error', logErr);
-  }
 
-  await sendWhatsAppMessage(from, responseText);
+    // Mettre à jour le contexte contact
+    await upsertContactContext(connection.id, contactId, { contactName });
+  } catch (logErr) {
+    console.error('[Twilio] Message save error', logErr);
+  }
 
   return new NextResponse(TWIML_OK, { headers: { 'Content-Type': 'text/xml' } });
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function buildConnectionSystemPrompt(connection: any): Promise<string> {
+async function buildConnectionSystemPrompt(
+  connection: any,
+  contactContext: string
+): Promise<string> {
   const setting = await prisma.systemSetting.findUnique({
     where: { key: 'global_system_prompt' },
   });
   const globalPrompt = setting?.value ?? getDefaultPrompt();
 
   const predefinedStr = connection.predefinedMessages
-    .map((m: any) => `Keywords: ${m.keywords.join(', ')}\nResponse: ${m.response}`)
+    .map((m: any) => `Mots-clés: ${m.keywords.join(', ')}\nRéponse: ${m.response}`)
+    .join('\n---\n');
+
+  const detailStr = (connection.detailResponses || [])
+    .map((d: any) => `Type de question: ${d.questionType}\nRéponse à adapter: ${d.response}`)
     .join('\n---\n');
 
   return buildSystemPrompt({
@@ -232,15 +260,17 @@ async function buildConnectionSystemPrompt(connection: any): Promise<string> {
     predefinedResponses: predefinedStr,
     customInstructions: connection.customInstructions ?? '',
     globalPrompt,
+    contactContext,
+    detailResponses: detailStr,
   });
 }
 
 function getDefaultPrompt(): string {
-  return `You are {botName}, an intelligent assistant for {businessName}.
+  return `Tu es {botName}, l'assistant intelligent de {businessName}.
 {botPersonality}
-Detect user language and reply in same language.
-PREDEFINED RESPONSES: {predefinedResponses}
-CUSTOM INSTRUCTIONS: {customInstructions}`;
+Détecte la langue de l'utilisateur et réponds dans la même langue (français, arabe, darija, anglais).
+RÉPONSES PRÉDÉFINIES : {predefinedResponses}
+INSTRUCTIONS PERSONNALISÉES : {customInstructions}`;
 }
 
 function findPredefinedResponse(messages: any[], text: string): string | null {
