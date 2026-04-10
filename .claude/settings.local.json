@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
+      "Bash(npx prisma:*)",
+      "Bash(set DATABASE_URL=postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true)",
+      "Bash(set DIRECT_URL=postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:5432/postgres)",
+      "Bash(npm install:*)",
+      "Bash(vercel --version)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['framer-motion']\\)\")",
+      "Bash(npx tsc:*)",
+      "Bash(npx next:*)",
+      "Bash(npm run:*)",
+      "Bash(node node_modules/.bin/next build)",
+      "Bash(npx --no-install next build)"
+    ]
+  }
+}

@@ -7,6 +7,8 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { passwordSchema } from '@/lib/validations';
 
+const TRIAL_TOKENS = 25;
+
 const schema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
@@ -36,8 +38,26 @@ export async function POST(req: NextRequest) {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
+  // Create user with 25 free trial tokens
   const user = await prisma.user.create({
-    data: { name, email, password: hashedPassword },
+    data: {
+      name,
+      email,
+      password: hashedPassword,
+      tokenBalance: TRIAL_TOKENS,
+      trialUsed: true,
+    },
+  });
+
+  // Log the trial token grant
+  await prisma.tokenTransaction.create({
+    data: {
+      userId: user.id,
+      type: 'TRIAL',
+      amount: TRIAL_TOKENS,
+      balance: TRIAL_TOKENS,
+      description: `🎁 Essai gratuit — ${TRIAL_TOKENS} tokens offerts`,
+    },
   });
 
   const token = uuidv4();
