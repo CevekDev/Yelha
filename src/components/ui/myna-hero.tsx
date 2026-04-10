@@ -157,7 +157,7 @@ export function MynaHero({ locale }: MynaHeroProps) {
       </header>
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen bg-[#0A0A0A] overflow-hidden flex flex-col items-center justify-center px-6">
+      <section className="relative min-h-screen bg-[#0A0A0A] overflow-hidden flex flex-col items-center justify-center px-6 pt-24 pb-16">
         {/* Background grid */}
         <div
           className="absolute inset-0 opacity-[0.03]"
@@ -258,21 +258,6 @@ export function MynaHero({ locale }: MynaHeroProps) {
           })}
         </motion.div>
 
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2.4, duration: 0.6 }}
-          className="absolute bottom-10 flex flex-col items-center gap-1"
-        >
-          <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            className="w-5 h-8 border border-white/20 rounded-full flex items-start justify-center pt-1.5"
-          >
-            <div className="w-1 h-2 bg-white/40 rounded-full" />
-          </motion.div>
-        </motion.div>
       </section>
     </>
   );

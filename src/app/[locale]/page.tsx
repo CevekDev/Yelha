@@ -1,20 +1,10 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { MynaHero } from '@/components/ui/myna-hero';
-import { Bot, MessageCircle, Zap, Globe, Shield, Coins, ArrowRight, Send, Mic } from 'lucide-react';
-import { LanguageSwitcher } from '@/components/language-switcher';
+import YelhaPricing from '@/components/ui/yelha-pricing';
+import { Bot, Globe, Shield, Coins, Send, Mic } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
-
-const PRICING = [
-  { name: 'Starter',  tokens: '500',    price: '1 590', desc: 'Parfait pour démarrer',    popular: false },
-  { name: 'Business', tokens: '2 000',  price: '3 200', desc: 'Pour les entreprises',      popular: true  },
-  { name: 'Pro',      tokens: '5 000',  price: '6 000', desc: 'Volume élevé',              popular: false },
-  { name: 'Agency',   tokens: '15 000', price: '15 000', desc: 'Agences & revendeurs',     popular: false },
-];
 
 const FEATURES = [
   {
@@ -39,7 +29,7 @@ const FEATURES = [
   },
   {
     icon: Coins,
-    title: 'Paiement à l\'usage',
+    title: "Paiement à l'usage",
     desc: '1 token par texte, 2 tokens par vocal. Payez uniquement ce que vous utilisez en DZD.',
   },
   {
@@ -50,15 +40,13 @@ const FEATURES = [
 ];
 
 export default async function LandingPage({ params: { locale } }: { params: { locale: string } }) {
-  const t = await getTranslations('nav');
-
   return (
     <div className="min-h-screen bg-[#0A0A0A]">
       {/* ── Hero (dark, animated) ── */}
       <MynaHero locale={locale} />
 
       {/* ── Features ─────────────────────────────────────────────────── */}
-      <section id="features" className="py-24 bg-white">
+      <section id="features" className="py-24 bg-white scroll-mt-20">
         <div className="container max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
             <span
@@ -74,7 +62,6 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
               Une plateforme complète pour automatiser vos réponses et offrir un service client exceptionnel.
             </p>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {FEATURES.map((f) => {
               const Icon = f.icon;
@@ -101,7 +88,7 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
       </section>
 
       {/* ── How it works ─────────────────────────────────────────────── */}
-      <section id="how" className="py-24 bg-gray-50">
+      <section id="how" className="py-24 bg-gray-50 scroll-mt-20">
         <div className="container max-w-4xl mx-auto px-6 text-center">
           <span
             className="font-mono text-xs font-semibold uppercase tracking-widest"
@@ -117,7 +104,7 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
               {
                 step: '01',
                 title: 'Créez votre compte',
-                desc: 'Inscrivez-vous gratuitement et accédez à votre tableau de bord.',
+                desc: 'Inscrivez-vous et recevez 25 tokens gratuits pour tester le service.',
               },
               {
                 step: '02',
@@ -145,70 +132,8 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
         </div>
       </section>
 
-      {/* ── Pricing ──────────────────────────────────────────────────── */}
-      <section id="pricing" className="py-24 bg-white">
-        <div className="container max-w-5xl mx-auto px-6 text-center">
-          <span
-            className="font-mono text-xs font-semibold uppercase tracking-widest"
-            style={{ color: ORANGE }}
-          >
-            Tarifs
-          </span>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-gray-900">
-            Tarification simple en tokens
-          </h2>
-          <p className="mt-4 text-gray-500 mb-14">
-            Pas d'abonnement. Achetez des tokens, utilisez quand vous voulez.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {PRICING.map((pkg) => (
-              <div
-                key={pkg.name}
-                className={`relative flex flex-col rounded-2xl border p-6 text-left transition-all ${
-                  pkg.popular
-                    ? 'border-orange-400 shadow-xl shadow-orange-100 ring-2 ring-orange-400'
-                    : 'border-gray-200 hover:border-orange-200 hover:shadow-md'
-                }`}
-              >
-                {pkg.popular && (
-                  <div
-                    className="absolute -top-3 left-1/2 -translate-x-1/2 text-white text-[11px] font-mono font-semibold px-3 py-1 rounded-full whitespace-nowrap"
-                    style={{ background: ORANGE }}
-                  >
-                    ★ Le plus populaire
-                  </div>
-                )}
-                <h3 className="font-mono font-semibold text-gray-900 mb-1">{pkg.name}</h3>
-                <div className="my-3">
-                  <span className="text-3xl font-bold text-gray-900">{pkg.price}</span>
-                  <span className="text-sm text-gray-400 ml-1">DA</span>
-                </div>
-                <p className="font-mono text-sm font-medium mb-1" style={{ color: ORANGE }}>
-                  {pkg.tokens} tokens
-                </p>
-                <p className="text-xs text-gray-400 mb-6">{pkg.desc}</p>
-                <Link href={`/${locale}/auth/signup`} className="mt-auto">
-                  <button
-                    className={`w-full rounded-xl py-2.5 text-sm font-mono font-semibold transition-all ${
-                      pkg.popular
-                        ? 'text-white hover:opacity-90'
-                        : 'text-gray-700 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
-                    }`}
-                    style={pkg.popular ? { background: ORANGE } : {}}
-                  >
-                    Commencer
-                  </button>
-                </Link>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-10 text-xs text-gray-400 font-mono">
-            1 token = 1 message texte · 2 tokens = 1 message vocal · 0 token = réponses prédéfinies
-          </p>
-        </div>
-      </section>
+      {/* ── Pricing (dark) ───────────────────────────────────────────── */}
+      <YelhaPricing />
 
       {/* ── CTA ──────────────────────────────────────────────────────── */}
       <section className="py-24 bg-[#0A0A0A]">
@@ -225,7 +150,7 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
               className="font-mono text-white text-sm px-8 py-4 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-95"
               style={{ background: ORANGE, boxShadow: `0 0 32px ${ORANGE}40` }}
             >
-              Commencer gratuitement →
+              Commencer gratuitement — 25 tokens offerts →
             </button>
           </Link>
         </div>
