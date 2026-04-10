@@ -115,7 +115,7 @@ export default function AdminUsersTable({ users }: { users: AdminUser[] }) {
                     {u.role}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-white/30">
+                <td className="px-4 py-3 text-white/30" suppressHydrationWarning>
                   {new Date(u.createdAt).toLocaleDateString('fr-DZ')}
                 </td>
               </tr>
