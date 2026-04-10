@@ -3,235 +3,251 @@ import { getTranslations } from 'next-intl/server';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Bot, MessageCircle, Zap, Globe, Shield, Coins, ArrowRight, Send, Instagram, Facebook, Lock } from 'lucide-react';
+import { MynaHero } from '@/components/ui/myna-hero';
+import { Bot, MessageCircle, Zap, Globe, Shield, Coins, ArrowRight, Send, Mic } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
-import { WaitlistForm } from '@/components/waitlist-form';
+
+const ORANGE = '#FF6B2C';
 
 const PRICING = [
-  { name: 'Starter',  tokens: '500',    price: '1 590', desc: 'Parfait pour démarrer',      popular: false },
-  { name: 'Business', tokens: '2 000',  price: '3 200', desc: 'Pour les entreprises',        popular: true  },
-  { name: 'Pro',      tokens: '5 000',  price: '6 000', desc: 'Volume élevé',                popular: false },
-  { name: 'Agency',   tokens: '15 000', price: '15 000', desc: 'Agences & revendeurs',       popular: false },
+  { name: 'Starter',  tokens: '500',    price: '1 590', desc: 'Parfait pour démarrer',    popular: false },
+  { name: 'Business', tokens: '2 000',  price: '3 200', desc: 'Pour les entreprises',      popular: true  },
+  { name: 'Pro',      tokens: '5 000',  price: '6 000', desc: 'Volume élevé',              popular: false },
+  { name: 'Agency',   tokens: '15 000', price: '15 000', desc: 'Agences & revendeurs',     popular: false },
+];
+
+const FEATURES = [
+  {
+    icon: Send,
+    title: 'Telegram Bot',
+    desc: 'Connectez votre bot Telegram en quelques secondes. Répondez automatiquement à tous vos clients.',
+  },
+  {
+    icon: Globe,
+    title: 'IA Multilingue',
+    desc: 'Répond en arabe (MSA & Darija), français, anglais et 100+ langues automatiquement.',
+  },
+  {
+    icon: Mic,
+    title: 'Messages vocaux',
+    desc: 'Transcrit les vocaux via OpenAI Whisper et répond intelligemment en texte.',
+  },
+  {
+    icon: Bot,
+    title: 'Personnalité IA',
+    desc: 'Ajustez la formalité, les emojis, la longueur et le style de réponse.',
+  },
+  {
+    icon: Coins,
+    title: 'Paiement à l\'usage',
+    desc: '1 token par texte, 2 tokens par vocal. Payez uniquement ce que vous utilisez en DZD.',
+  },
+  {
+    icon: Shield,
+    title: 'Sécurité enterprise',
+    desc: 'Chiffrement AES-256, JWT, rate limiting, CSRF. Vos données restent en sécurité.',
+  },
 ];
 
 export default async function LandingPage({ params: { locale } }: { params: { locale: string } }) {
   const t = await getTranslations('nav');
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Bot className="w-7 h-7 text-primary" />
-            <span className="text-xl font-bold text-primary">AiReply</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <LanguageSwitcher />
-            <Link href={`/${locale}/auth/signin`}>
-              <Button variant="ghost">{t('signIn')}</Button>
-            </Link>
-            <Link href={`/${locale}/auth/signup`}>
-              <Button>{t('signUp')}</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-[#0A0A0A]">
+      {/* ── Hero (dark, animated) ── */}
+      <MynaHero locale={locale} />
 
-      {/* Hero */}
-      <section className="py-24 text-center">
-        <div className="container">
-          <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-medium mb-6">
-            <Zap className="w-4 h-4" />
-            Propulsé par DeepSeek AI
-          </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
-            Réponses IA pour<br />
-            <span className="text-primary">chaque conversation</span>
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            Automatisez vos messages WhatsApp et Telegram avec une IA intelligente
-            qui parle arabe (Darija & MSA), français, anglais, et toute autre langue.
-          </p>
-          <div className="flex items-center justify-center gap-4 flex-wrap">
-            <Link href={`/${locale}/auth/signup`}>
-              <Button size="lg" className="gap-2">
-                Commencer gratuitement <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
-            <Link href={`/${locale}/auth/signin`}>
-              <Button size="lg" variant="outline">Se connecter</Button>
-            </Link>
+      {/* ── Features ─────────────────────────────────────────────────── */}
+      <section id="features" className="py-24 bg-white">
+        <div className="container max-w-6xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <span
+              className="font-mono text-xs font-semibold uppercase tracking-widest"
+              style={{ color: ORANGE }}
+            >
+              Fonctionnalités
+            </span>
+            <h2 className="mt-3 text-4xl font-bold tracking-tight text-gray-900">
+              Tout ce dont vous avez besoin
+            </h2>
+            <p className="mt-4 text-gray-500 max-w-xl mx-auto">
+              Une plateforme complète pour automatiser vos réponses et offrir un service client exceptionnel.
+            </p>
           </div>
 
-          {/* Platform pills */}
-          <div className="flex items-center justify-center gap-3 mt-10 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1 text-sm font-medium">
-              <MessageCircle className="w-4 h-4" /> WhatsApp
-              <Badge className="ms-1 bg-green-600 text-white text-[10px] px-1.5 py-0">Disponible</Badge>
-            </div>
-            <div className="flex items-center gap-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-full px-3 py-1 text-sm font-medium">
-              <Send className="w-4 h-4" /> Telegram
-              <Badge className="ms-1 bg-sky-600 text-white text-[10px] px-1.5 py-0">Disponible</Badge>
-            </div>
-            <div className="flex items-center gap-1.5 bg-gray-50 text-gray-400 border border-gray-200 rounded-full px-3 py-1 text-sm font-medium opacity-70">
-              <Instagram className="w-4 h-4" /> Instagram
-              <Badge className="ms-1 bg-gray-400 text-white text-[10px] px-1.5 py-0">Prochainement</Badge>
-            </div>
-            <div className="flex items-center gap-1.5 bg-gray-50 text-gray-400 border border-gray-200 rounded-full px-3 py-1 text-sm font-medium opacity-70">
-              <Facebook className="w-4 h-4" /> Facebook
-              <Badge className="ms-1 bg-gray-400 text-white text-[10px] px-1.5 py-0">Prochainement</Badge>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-20 bg-muted/30">
-        <div className="container">
-          <h2 className="text-3xl font-bold text-center mb-12">Tout ce dont vous avez besoin</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { icon: MessageCircle, title: 'WhatsApp & Telegram', desc: 'Connectez WhatsApp Business via Twilio et vos bots Telegram en quelques minutes.' },
-              { icon: Globe, title: 'IA Multilingue', desc: 'Répond en arabe (MSA & Darija), français, anglais, et 100+ langues automatiquement.' },
-              { icon: Zap, title: 'Messages vocaux', desc: 'Transcrit les vocaux via OpenAI Whisper et répond intelligemment en texte.' },
-              { icon: Bot, title: 'Personnalité personnalisée', desc: 'Ajustez la formalité, la convivialité, la longueur des réponses et les emojis.' },
-              { icon: Coins, title: 'Tarification à l\'usage', desc: 'Payez uniquement ce que vous consommez. 1 token par texte, 2 tokens pour les vocaux.' },
-              { icon: Shield, title: 'Sécurité enterprise', desc: 'Chiffrement AES-256, auth JWT, rate limiting, CSRF et conformité RGPD.' },
-            ].map((f) => {
+            {FEATURES.map((f) => {
               const Icon = f.icon;
               return (
-                <Card key={f.title}>
-                  <CardContent className="p-6">
-                    <Icon className="w-10 h-10 text-primary mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">{f.title}</h3>
-                    <p className="text-muted-foreground text-sm">{f.desc}</p>
-                  </CardContent>
-                </Card>
+                <div
+                  key={f.title}
+                  className="group flex flex-col gap-4 p-6 rounded-2xl border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all duration-200 bg-white"
+                >
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center"
+                    style={{ background: `${ORANGE}15` }}
+                  >
+                    <Icon className="w-6 h-6" style={{ color: ORANGE }} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1">{f.title}</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+                  </div>
+                </div>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="py-20">
-        <div className="container text-center">
-          <h2 className="text-3xl font-bold mb-4">Tarification simple en tokens</h2>
-          <p className="text-muted-foreground mb-12">Pas d'abonnement. Achetez des tokens, utilisez quand vous voulez.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            {PRICING.map((pkg) => (
-              <Card key={pkg.name} className={`relative ${pkg.popular ? 'border-primary ring-2 ring-primary' : ''}`}>
-                {pkg.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full whitespace-nowrap">
-                    Le plus populaire
-                  </div>
-                )}
-                <CardContent className="p-6 text-center">
-                  <h3 className="font-semibold mb-1">{pkg.name}</h3>
-                  <div className="text-3xl font-bold my-3">
-                    {pkg.price} <span className="text-lg font-medium text-muted-foreground">DA</span>
-                  </div>
-                  <p className="text-primary font-medium mb-2">{pkg.tokens} tokens</p>
-                  <p className="text-sm text-muted-foreground mb-4">{pkg.desc}</p>
-                  <Link href={`/${locale}/auth/signup`}>
-                    <Button className="w-full" variant={pkg.popular ? 'default' : 'outline'}>
-                      Démarrer
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Coming Soon platforms */}
-      <section className="py-20 bg-muted/30">
-        <div className="container text-center">
-          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
-            <Lock className="w-4 h-4" />
-            Prochainement
-          </div>
-          <h2 className="text-3xl font-bold mb-4">Instagram & Facebook arrivent bientôt</h2>
-          <p className="text-muted-foreground mb-10 max-w-xl mx-auto">
-            Nous travaillons activement sur l'intégration des DMs Instagram et Facebook Messenger.
-            Laissez votre email pour être notifié en priorité.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-            <Card className="border-pink-200">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <Instagram className="w-6 h-6 text-pink-500" />
-                  <span className="font-semibold">Instagram DM</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-2">Répondre automatiquement à vos DMs Instagram</p>
-                <WaitlistForm platform="instagram" label="Instagram" />
-              </CardContent>
-            </Card>
-            <Card className="border-blue-200">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <Facebook className="w-6 h-6 text-blue-600" />
-                  <span className="font-semibold">Facebook Messenger</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-2">Automatisez vos conversations Messenger</p>
-                <WaitlistForm platform="facebook" label="Facebook" />
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="py-20">
-        <div className="container text-center">
-          <h2 className="text-3xl font-bold mb-12">Comment ça marche</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+      {/* ── How it works ─────────────────────────────────────────────── */}
+      <section id="how" className="py-24 bg-gray-50">
+        <div className="container max-w-4xl mx-auto px-6 text-center">
+          <span
+            className="font-mono text-xs font-semibold uppercase tracking-widest"
+            style={{ color: ORANGE }}
+          >
+            Comment ça marche
+          </span>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight text-gray-900 mb-16">
+            Opérationnel en 3 étapes
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             {[
-              { step: '1', title: 'Connectez vos plateformes', desc: 'Liez WhatsApp Business via Twilio ou créez un bot Telegram en quelques minutes.' },
-              { step: '2', title: 'Configurez votre IA', desc: 'Définissez la personnalité, les réponses prédéfinies, les horaires et les instructions.' },
-              { step: '3', title: 'L\'IA s\'occupe du reste', desc: 'Votre bot répond automatiquement 24h/24 dans la langue de vos clients.' },
+              {
+                step: '01',
+                title: 'Créez votre compte',
+                desc: 'Inscrivez-vous gratuitement et accédez à votre tableau de bord.',
+              },
+              {
+                step: '02',
+                title: 'Connectez Telegram',
+                desc: 'Créez un bot via @BotFather et collez le token — le webhook est configuré automatiquement.',
+              },
+              {
+                step: '03',
+                title: "L'IA répond pour vous",
+                desc: 'Votre bot répond 24h/24 dans la langue de vos clients, en suivant vos instructions.',
+              },
             ].map((item) => (
               <div key={item.step} className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold mb-4">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center font-mono text-xl font-bold text-white mb-5"
+                  style={{ background: ORANGE }}
+                >
                   {item.step}
                 </div>
-                <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-                <p className="text-muted-foreground text-sm">{item.desc}</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 bg-muted/30">
-        <div className="container text-center">
-          <h2 className="text-3xl font-bold mb-4">Prêt à automatiser vos messages ?</h2>
-          <p className="text-muted-foreground mb-8">
-            Rejoignez les entreprises qui utilisent AiReply pour gagner du temps et améliorer leur service client.
+      {/* ── Pricing ──────────────────────────────────────────────────── */}
+      <section id="pricing" className="py-24 bg-white">
+        <div className="container max-w-5xl mx-auto px-6 text-center">
+          <span
+            className="font-mono text-xs font-semibold uppercase tracking-widest"
+            style={{ color: ORANGE }}
+          >
+            Tarifs
+          </span>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight text-gray-900">
+            Tarification simple en tokens
+          </h2>
+          <p className="mt-4 text-gray-500 mb-14">
+            Pas d'abonnement. Achetez des tokens, utilisez quand vous voulez.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {PRICING.map((pkg) => (
+              <div
+                key={pkg.name}
+                className={`relative flex flex-col rounded-2xl border p-6 text-left transition-all ${
+                  pkg.popular
+                    ? 'border-orange-400 shadow-xl shadow-orange-100 ring-2 ring-orange-400'
+                    : 'border-gray-200 hover:border-orange-200 hover:shadow-md'
+                }`}
+              >
+                {pkg.popular && (
+                  <div
+                    className="absolute -top-3 left-1/2 -translate-x-1/2 text-white text-[11px] font-mono font-semibold px-3 py-1 rounded-full whitespace-nowrap"
+                    style={{ background: ORANGE }}
+                  >
+                    ★ Le plus populaire
+                  </div>
+                )}
+                <h3 className="font-mono font-semibold text-gray-900 mb-1">{pkg.name}</h3>
+                <div className="my-3">
+                  <span className="text-3xl font-bold text-gray-900">{pkg.price}</span>
+                  <span className="text-sm text-gray-400 ml-1">DA</span>
+                </div>
+                <p className="font-mono text-sm font-medium mb-1" style={{ color: ORANGE }}>
+                  {pkg.tokens} tokens
+                </p>
+                <p className="text-xs text-gray-400 mb-6">{pkg.desc}</p>
+                <Link href={`/${locale}/auth/signup`} className="mt-auto">
+                  <button
+                    className={`w-full rounded-xl py-2.5 text-sm font-mono font-semibold transition-all ${
+                      pkg.popular
+                        ? 'text-white hover:opacity-90'
+                        : 'text-gray-700 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                    }`}
+                    style={pkg.popular ? { background: ORANGE } : {}}
+                  >
+                    Commencer
+                  </button>
+                </Link>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-10 text-xs text-gray-400 font-mono">
+            1 token = 1 message texte · 2 tokens = 1 message vocal · 0 token = réponses prédéfinies
+          </p>
+        </div>
+      </section>
+
+      {/* ── CTA ──────────────────────────────────────────────────────── */}
+      <section className="py-24 bg-[#0A0A0A]">
+        <div className="container max-w-3xl mx-auto px-6 text-center">
+          <h2 className="font-mono text-4xl md:text-5xl font-bold text-white mb-6">
+            Prêt à automatiser <br />
+            <span style={{ color: ORANGE }}>vos messages ?</span>
+          </h2>
+          <p className="text-white/50 text-base mb-10 font-mono">
+            Rejoignez les entreprises algériennes qui utilisent AiReply pour gagner du temps.
           </p>
           <Link href={`/${locale}/auth/signup`}>
-            <Button size="lg" className="gap-2">
-              Commencer gratuitement <ArrowRight className="w-4 h-4" />
-            </Button>
+            <button
+              className="font-mono text-white text-sm px-8 py-4 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-95"
+              style={{ background: ORANGE, boxShadow: `0 0 32px ${ORANGE}40` }}
+            >
+              Commencer gratuitement →
+            </button>
           </Link>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t py-12">
-        <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
+      {/* ── Footer ───────────────────────────────────────────────────── */}
+      <footer className="border-t border-white/10 py-10 bg-[#0A0A0A]">
+        <div className="container max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-primary" />
-            <span className="font-semibold">AiReply</span>
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: ORANGE }}
+            >
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-mono font-bold text-white">AiReply</span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2025 AiReply. Tous droits réservés.</p>
-          <div className="flex gap-4 text-sm text-muted-foreground">
-            <Link href="#" className="hover:text-foreground">Politique de confidentialité</Link>
-            <Link href="#" className="hover:text-foreground">CGU</Link>
-            <Link href="#" className="hover:text-foreground">Contact</Link>
+          <p className="font-mono text-xs text-white/30">© 2025 AiReply. Tous droits réservés.</p>
+          <div className="flex gap-5 font-mono text-xs text-white/30">
+            <Link href="#" className="hover:text-white/60 transition-colors">Confidentialité</Link>
+            <Link href="#" className="hover:text-white/60 transition-colors">CGU</Link>
+            <Link href="#" className="hover:text-white/60 transition-colors">Contact</Link>
           </div>
         </div>
       </footer>
