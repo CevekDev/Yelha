@@ -61,7 +61,7 @@ export default async function AdminPage({ params: { locale } }: { params: { loca
       select: {
         id: true, name: true, email: true, tokenBalance: true,
         role: true, unlimitedTokens: true, createdAt: true,
-        twoFactorEnabled: true, emailVerified: true,
+        twoFactorEnabled: true, emailVerified: true, isBanned: true,
         _count: { select: { connections: true } },
       },
     }),

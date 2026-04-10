@@ -38,7 +38,7 @@ export default async function ConversationsPage({
         </p>
       </div>
 
-      <ConversationsClient connections={connections} />
+      <ConversationsClient connections={connections as any} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { MessageSquare, Bot, Search, User, Send, Plug, RefreshCw, MapPin, FileText, Edit2, Check, X } from 'lucide-react';
+import { MessageSquare, Bot, Search, User, Send, Plug, RefreshCw, MapPin, FileText, Edit2, Check, X, AlertTriangle, PauseCircle, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -32,6 +32,9 @@ type Conversation = {
   lastMessage: Date;
   createdAt: Date;
   isNew: boolean;
+  isSuspended: boolean;
+  needsHelp: boolean;
+  spamScore: number;
   messages: Message[];
 };
 
@@ -65,6 +68,7 @@ export default function ConversationsClient({ connections }: { connections: Conn
   const [contactCtx, setContactCtx] = useState<ContactContext | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showContextPanel, setShowContextPanel] = useState(false);
+  const [convStates, setConvStates] = useState<Record<string, { isSuspended: boolean; needsHelp: boolean }>>({});
   const [isPending, startTransition] = useTransition();
 
   // Editable context fields
@@ -113,6 +117,39 @@ export default function ConversationsClient({ connections }: { connections: Conn
       loadMessages(selectedConv.id, selectedConnection.id, selectedConv.contactId);
     }
   }, [selectedConv?.id]);
+
+  const getConvState = (conv: Conversation) => ({
+    isSuspended: convStates[conv.id]?.isSuspended ?? conv.isSuspended,
+    needsHelp: convStates[conv.id]?.needsHelp ?? conv.needsHelp,
+  });
+
+  const handleToggleConvSuspend = (conv: Conversation) => {
+    const current = getConvState(conv);
+    startTransition(async () => {
+      const res = await fetch(`/api/conversations/${conv.id}/suspend`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isSuspended: !current.isSuspended }),
+      });
+      if (res.ok) {
+        setConvStates(prev => ({ ...prev, [conv.id]: { ...current, isSuspended: !current.isSuspended } }));
+      }
+    });
+  };
+
+  const handleResolveHelp = (conv: Conversation) => {
+    startTransition(async () => {
+      const res = await fetch(`/api/conversations/${conv.id}/suspend`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ needsHelp: false, isSuspended: false }),
+      });
+      if (res.ok) {
+        const current = getConvState(conv);
+        setConvStates(prev => ({ ...prev, [conv.id]: { ...current, needsHelp: false, isSuspended: false } }));
+      }
+    });
+  };
 
   const handleSaveContext = () => {
     if (!selectedConv || !selectedConnection) return;
@@ -258,29 +295,43 @@ export default function ConversationsClient({ connections }: { connections: Conn
             ) : (
               filteredConvs.map((conv) => {
                 const lastMsg = conv.messages[0];
+                const state = getConvState(conv);
                 return (
                   <button
                     key={conv.id}
                     onClick={() => setSelectedConv(conv)}
                     className={`w-full flex items-start gap-3 px-4 py-3 text-left border-b border-white/[0.04] transition-all ${
                       selectedConv?.id === conv.id ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]'
-                    }`}
+                    } ${state.isSuspended ? 'opacity-50' : ''}`}
                   >
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-mono font-bold"
-                      style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}
-                    >
-                      {(conv.contactName || conv.contactId)[0]?.toUpperCase() || '?'}
+                    <div className="relative flex-shrink-0">
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-mono font-bold"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}
+                      >
+                        {(conv.contactName || conv.contactId)[0]?.toUpperCase() || '?'}
+                      </div>
+                      {state.needsHelp && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+                          <AlertTriangle className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
                         <p className="font-mono text-xs font-semibold text-white truncate">
                           {conv.contactName || conv.contactId}
                         </p>
-                        <span className="font-mono text-[10px] text-white/20 ml-1 flex-shrink-0">
-                          {formatRelative(new Date(conv.lastMessage))}
-                        </span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {state.isSuspended && <PauseCircle className="w-3 h-3 text-yellow-400" />}
+                          <span className="font-mono text-[10px] text-white/20">
+                            {formatRelative(new Date(conv.lastMessage))}
+                          </span>
+                        </div>
                       </div>
+                      {state.needsHelp && (
+                        <p className="font-mono text-[10px] text-red-400 mb-0.5">⚠️ Besoin d'aide humaine</p>
+                      )}
                       {lastMsg && (
                         <p className="font-mono text-[11px] text-white/30 truncate">
                           {lastMsg.direction === 'outbound' ? '🤖 ' : '👤 '}
@@ -323,25 +374,43 @@ export default function ConversationsClient({ connections }: { connections: Conn
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Resolve needs help */}
+                  {selectedConv && getConvState(selectedConv).needsHelp && (
+                    <button
+                      onClick={() => selectedConv && handleResolveHelp(selectedConv)}
+                      disabled={isPending}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold text-white bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-all"
+                      title="Marquer comme résolu"
+                    >
+                      <AlertTriangle className="w-3 h-3 text-red-400" />
+                      Résoudre
+                    </button>
+                  )}
+                  {/* Suspend conv */}
+                  {selectedConv && (
+                    <button
+                      onClick={() => handleToggleConvSuspend(selectedConv)}
+                      disabled={isPending}
+                      className="p-1.5 rounded-lg transition-all text-white/30 hover:bg-white/[0.06]"
+                      style={getConvState(selectedConv).isSuspended ? { color: '#F59E0B' } : {}}
+                      title={getConvState(selectedConv).isSuspended ? 'Reprendre la conversation' : 'Suspendre la conversation'}
+                    >
+                      {getConvState(selectedConv).isSuspended
+                        ? <PlayCircle className="w-4 h-4" />
+                        : <PauseCircle className="w-4 h-4" />}
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowContextPanel(!showContextPanel)}
-                    className={`p-1.5 rounded-lg transition-all ${
-                      showContextPanel
-                        ? 'text-white'
-                        : 'text-white/30 hover:text-white hover:bg-white/[0.06]'
-                    }`}
+                    className={`p-1.5 rounded-lg transition-all ${showContextPanel ? 'text-white' : 'text-white/30 hover:text-white hover:bg-white/[0.06]'}`}
                     style={showContextPanel ? { background: `${ORANGE}20`, color: ORANGE } : {}}
                     title="Profil client"
                   >
                     <FileText className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() =>
-                      selectedConv &&
-                      selectedConnection &&
-                      loadMessages(selectedConv.id, selectedConnection.id, selectedConv.contactId)
-                    }
+                    onClick={() => selectedConv && selectedConnection && loadMessages(selectedConv.id, selectedConnection.id, selectedConv.contactId)}
                     className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06] transition-all"
                     title="Rafraîchir"
                   >

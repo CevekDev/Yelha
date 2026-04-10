@@ -3,8 +3,7 @@
 import { useState, useTransition } from 'react';
 import {
   Bot, MessageSquare, Zap, Plus, Trash2, Edit2, X, Check,
-  ChevronDown, Sparkles, Instagram, MessagesSquare,
-  AlertCircle, Settings2, Layers,
+  Sparkles, AlertCircle, Settings2, Layers, PauseCircle, PlayCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -73,6 +72,7 @@ type Connection = {
   businessName: string | null;
   customInstructions: string | null;
   botPersonality: any;
+  isSuspended: boolean;
   predefinedMessages: PredefinedMessage[];
   detailResponses: DetailResponse[];
 };
@@ -93,6 +93,7 @@ export default function BotSettingsClient({ connections }: { connections: Connec
   const [isPending, startTransition] = useTransition();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [isSuspended, setIsSuspended] = useState(selectedConn?.isSuspended ?? false);
 
   // General form state
   const [botName, setBotName] = useState(selectedConn?.botName || '');
@@ -132,8 +133,23 @@ export default function BotSettingsClient({ connections }: { connections: Connec
     setCustomPersonality((conn.botPersonality as any)?.custom || '');
     setMessages(conn.predefinedMessages);
     setDetails(conn.detailResponses);
+    setIsSuspended(conn.isSuspended);
     setError('');
     setSaveSuccess(false);
+  };
+
+  const handleToggleSuspend = () => {
+    if (!selectedConn) return;
+    startTransition(async () => {
+      const res = await fetch(`/api/connections/${selectedConn.id}/suspend`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isSuspended: !isSuspended }),
+      });
+      if (res.ok) {
+        setIsSuspended(!isSuspended);
+      }
+    });
   };
 
   const handleSaveGeneral = () => {
@@ -335,6 +351,46 @@ export default function BotSettingsClient({ connections }: { connections: Connec
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Suspend bot toggle */}
+      {selectedConn && (
+        <div
+          className={`rounded-2xl border p-4 flex items-center justify-between ${
+            isSuspended
+              ? 'border-yellow-500/30 bg-yellow-500/[0.05]'
+              : 'border-white/[0.06] bg-white/[0.02]'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            {isSuspended
+              ? <PauseCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+              : <PlayCircle className="w-5 h-5 text-green-400 flex-shrink-0" />}
+            <div>
+              <p className="font-mono text-sm font-semibold text-white">
+                {isSuspended ? 'Bot suspendu' : 'Bot actif'}
+              </p>
+              <p className="font-mono text-xs text-white/40">
+                {isSuspended
+                  ? 'Le bot ne répond plus aux messages — réactivez-le quand vous êtes prêt'
+                  : 'Le bot répond automatiquement aux messages de vos clients'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleSuspend}
+            disabled={isPending}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+              isSuspended ? 'bg-yellow-500' : 'bg-green-500'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isSuspended ? 'translate-x-1' : 'translate-x-6'
+              }`}
+            />
+          </button>
         </div>
       )}
 

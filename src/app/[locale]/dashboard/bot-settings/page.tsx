@@ -13,7 +13,7 @@ export default async function BotSettingsPage({
   if (!session) redirect(`/${locale}/auth/signin`);
 
   const connections = await prisma.connection.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, isActive: true },
     include: {
       predefinedMessages: { orderBy: { priority: 'desc' } },
       detailResponses: { orderBy: { createdAt: 'asc' } },
