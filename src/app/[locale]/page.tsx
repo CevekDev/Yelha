@@ -218,7 +218,7 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
             <span style={{ color: ORANGE }}>vos messages ?</span>
           </h2>
           <p className="text-white/50 text-base mb-10 font-mono">
-            Rejoignez les entreprises algériennes qui utilisent AiReply pour gagner du temps.
+            Rejoignez les entreprises algériennes qui utilisent Yelha pour gagner du temps.
           </p>
           <Link href={`/${locale}/auth/signup`}>
             <button
@@ -241,13 +241,13 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
             >
               <Bot className="w-4 h-4 text-white" />
             </div>
-            <span className="font-mono font-bold text-white">AiReply</span>
+            <span className="font-mono font-bold text-white">Yelha</span>
           </div>
-          <p className="font-mono text-xs text-white/30">© 2025 AiReply. Tous droits réservés.</p>
+          <p className="font-mono text-xs text-white/30">© 2025 Yelha. Tous droits réservés.</p>
           <div className="flex gap-5 font-mono text-xs text-white/30">
-            <Link href="#" className="hover:text-white/60 transition-colors">Confidentialité</Link>
-            <Link href="#" className="hover:text-white/60 transition-colors">CGU</Link>
-            <Link href="#" className="hover:text-white/60 transition-colors">Contact</Link>
+            <Link href={`/${locale}/privacy`} className="hover:text-white/60 transition-colors">Confidentialité</Link>
+            <Link href={`/${locale}/terms`} className="hover:text-white/60 transition-colors">CGU</Link>
+            <Link href={`/${locale}/contact`} className="hover:text-white/60 transition-colors">Contact</Link>
           </div>
         </div>
       </footer>

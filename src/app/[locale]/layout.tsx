@@ -17,8 +17,73 @@ const cairo = Cairo({
 const locales = ['fr', 'en', 'ar'];
 
 export const metadata: Metadata = {
-  title: 'AiReply - AI-Powered Messaging Assistant',
-  description: 'Automate your WhatsApp, Instagram, Facebook, and Telegram replies with AI',
+  title: {
+    default: 'Yelha — Bot Telegram IA pour les entreprises algériennes',
+    template: '%s | Yelha',
+  },
+  description:
+    'Automatisez vos réponses Telegram avec une IA intelligente. Parle arabe (Darija & MSA), français, anglais. Paiement en Dinars Algériens (DZD) via Chargily.',
+  keywords: [
+    'bot telegram algérie',
+    'intelligence artificielle algérie',
+    'chatbot DZ',
+    'automatisation messages algérie',
+    'bot ia darija',
+    'bot telegram DZD',
+    'yelha',
+    'service client automatique algérie',
+    'bot arabe algérie',
+    'SaaS algérie',
+  ],
+  authors: [{ name: 'Yelha', url: 'https://yelha-production.up.railway.app' }],
+  creator: 'Yelha',
+  publisher: 'Yelha',
+  metadataBase: new URL('https://yelha-production.up.railway.app'),
+  alternates: {
+    canonical: '/',
+    languages: {
+      'fr': '/fr',
+      'en': '/en',
+      'ar': '/ar',
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'fr_DZ',
+    url: 'https://yelha-production.up.railway.app',
+    siteName: 'Yelha',
+    title: 'Yelha — Bot Telegram IA pour les entreprises algériennes',
+    description:
+      'Automatisez vos réponses Telegram avec une IA intelligente. Arabe (Darija & MSA), français, anglais. Paiement DZD.',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Yelha — Bot Telegram IA Algérie',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Yelha — Bot Telegram IA',
+    description: 'Automatisez vos messages Telegram avec une IA qui parle Darija, arabe, français.',
+    images: ['/og-image.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    google: '',
+  },
 };
 
 export default async function LocaleLayout({
@@ -35,6 +100,12 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} dir={isRTL ? 'rtl' : 'ltr'} className={`${inter.variable} ${cairo.variable}`}>
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="geo.region" content="DZ" />
+        <meta name="geo.country" content="Algeria" />
+        <meta name="language" content={locale === 'ar' ? 'Arabic' : locale === 'fr' ? 'French' : 'English'} />
+      </head>
       <body className={`${isRTL ? 'font-cairo' : 'font-sans'} antialiased bg-background text-foreground`}>
         <NextIntlClientProvider messages={messages}>
           <SessionProvider>

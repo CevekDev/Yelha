@@ -81,7 +81,7 @@ export function MynaHero({ locale }: MynaHeroProps) {
               <Bot className="w-5 h-5 text-white" />
             </div>
             <span className="font-mono font-bold text-white text-lg tracking-tight">
-              AiReply
+              Yelha
             </span>
           </Link>
 
@@ -231,7 +231,7 @@ export function MynaHero({ locale }: MynaHeroProps) {
               className="font-mono text-white text-sm px-6 py-3 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-95 shadow-lg"
               style={{ background: ORANGE, boxShadow: `0 0 24px ${ORANGE}40` }}
             >
-              Commencer gratuitement →
+              Essayez Yelha gratuitement →
             </button>
           </Link>
           <a href="#pricing">
