@@ -82,7 +82,7 @@ async function main() {
   for (const pkg of packages) {
     await prisma.tokenPackage.upsert({
       where: { id: pkg.name.toLowerCase() },
-      update: {},
+      update: { tokens: pkg.tokens, price: pkg.price, currency: pkg.currency, isActive: pkg.isActive, isFeatured: pkg.isFeatured },
       create: { id: pkg.name.toLowerCase(), ...pkg },
     });
   }

@@ -115,10 +115,23 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
-        token.twoFactorEnabled = (user as any).twoFactorEnabled;
-        token.twoFactorVerified = (user as any).twoFactorVerified ?? false;
-        token.unlimitedTokens = (user as any).unlimitedTokens ?? false;
+        // For Google OAuth, custom fields (role, twoFactorEnabled, unlimitedTokens)
+        // are NOT included in the user object — fetch them from DB.
+        if (!(user as any).role) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { role: true, twoFactorEnabled: true, unlimitedTokens: true },
+          });
+          token.role = dbUser?.role ?? 'USER';
+          token.twoFactorEnabled = dbUser?.twoFactorEnabled ?? false;
+          token.twoFactorVerified = false;
+          token.unlimitedTokens = dbUser?.unlimitedTokens ?? false;
+        } else {
+          token.role = (user as any).role;
+          token.twoFactorEnabled = (user as any).twoFactorEnabled;
+          token.twoFactorVerified = (user as any).twoFactorVerified ?? false;
+          token.unlimitedTokens = (user as any).unlimitedTokens ?? false;
+        }
       }
       if (trigger === 'update' && session) {
         token = { ...token, ...session };
