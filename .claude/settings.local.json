@@ -15,7 +15,9 @@
       "Bash(npx --no-install next build)",
       "Bash(node -e ':*)",
       "Bash(npx dotenv:*)",
-      "Bash(DATABASE_URL=\"postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true\" DIRECT_URL=\"postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" npx prisma db push)"
+      "Bash(DATABASE_URL=\"postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true\" DIRECT_URL=\"postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" npx prisma db push)",
+      "Bash(findstr /i \"direct\\\\|database\")",
+      "Bash(dir /b .env*)"
     ]
   }
 }
