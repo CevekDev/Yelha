@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Tag, Plus, Loader2, X, Shuffle, Percent, Coins } from 'lucide-react';
 
@@ -31,13 +31,18 @@ export default function AdminPromoPanel({ initialCodes }: { initialCodes: PromoC
   const [showForm, setShowForm] = useState(false);
   const [promoType, setPromoType] = useState<'tokens' | 'discount'>('tokens');
   const [form, setForm] = useState({
-    code: generateCode(),
+    code: '',          // generated client-side only (avoid Math.random() SSR mismatch)
     tokens: '100',
     discountPercent: '10',
     maxUses: '1',
     expiresAt: '',
     description: '',
   });
+
+  // Generate initial code only on the client to avoid hydration mismatch
+  useEffect(() => {
+    setForm(f => ({ ...f, code: generateCode() }));
+  }, []);
 
   const inputClass =
     'w-full bg-white/[0.06] border border-white/[0.08] rounded-xl px-3 py-2 text-sm font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#a78bfa]/40 transition-colors';
@@ -252,7 +257,8 @@ export default function AdminPromoPanel({ initialCodes }: { initialCodes: PromoC
             <p className="text-center text-white/20 text-sm py-8 font-mono">Aucun code promo créé</p>
           )}
           {codes.map(code => {
-            const isExpired = code.expiresAt && new Date(code.expiresAt as string) < new Date();
+            const expiresDate = code.expiresAt ? new Date(code.expiresAt as string) : null;
+            const isExpired = expiresDate && expiresDate < new Date();
             const isDiscount = (code.discountPercent ?? 0) > 0;
             return (
               <div
@@ -285,9 +291,9 @@ export default function AdminPromoPanel({ initialCodes }: { initialCodes: PromoC
                     <span className="text-xs text-white/30 font-mono">
                       {code._count.uses}/{code.maxUses} utilisations
                     </span>
-                    {code.expiresAt && !isExpired && (
-                      <span className="text-xs text-white/20 font-mono">
-                        Expire le {new Date(code.expiresAt as string).toLocaleDateString('fr-DZ')}
+                    {expiresDate && !isExpired && (
+                      <span className="text-xs text-white/20 font-mono" suppressHydrationWarning>
+                        Expire le {expiresDate.toLocaleDateString('fr-DZ')}
                       </span>
                     )}
                     {code.description && (
