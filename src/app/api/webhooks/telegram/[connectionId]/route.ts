@@ -275,7 +275,7 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
 
   const prompt = buildSystemPrompt({
     botName: connection.botName || 'Assistant',
-    businessName: connection.businessName || '',
+    businessName: connection.businessName || connection.name || 'la boutique',
     botPersonality: connection.botPersonality,
     predefinedResponses: predefinedStr || 'Aucune',
     customInstructions: connection.customInstructions || 'Aucune',
