@@ -50,15 +50,21 @@ export default function SignInPage() {
       });
 
       if (result?.error) {
-        // 2FA required — redirect to verify-2fa page
+        // 2FA required
         if (result.error.startsWith('2FA_REQUIRED:')) {
           const email = result.error.split('2FA_REQUIRED:')[1];
           router.push(`/${locale}/auth/verify-2fa?email=${encodeURIComponent(email)}`);
           return;
         }
 
+        // Email not verified → redirect to verify-email page
+        if (result.error.startsWith('EMAIL_NOT_VERIFIED:')) {
+          const unverifiedEmail = result.error.split('EMAIL_NOT_VERIFIED:')[1];
+          router.push(`/${locale}/auth/verify-email?email=${encodeURIComponent(unverifiedEmail)}`);
+          return;
+        }
+
         const errorMap: Record<string, string> = {
-          EMAIL_NOT_VERIFIED: t('errors.emailNotVerified'),
           ACCOUNT_LOCKED: t('errors.accountLocked'),
         };
         toast({

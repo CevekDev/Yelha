@@ -6,7 +6,8 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
 const schema = z.object({
-  token: z.string(),
+  email: z.string().email(),
+  code: z.string().length(6),
   password: passwordSchema,
 });
 
@@ -19,17 +20,35 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
 
-  const { token, password } = parsed.data;
-  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const { email, code, password } = parsed.data;
 
-  if (!resetToken || resetToken.used || resetToken.expires < new Date()) {
-    return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 });
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return NextResponse.json({ error: 'Code invalide ou expiré' }, { status: 400 });
+
+  // Find token where the stored value ends with `-{code}`
+  const resetToken = await prisma.passwordResetToken.findFirst({
+    where: {
+      userId: user.id,
+      used: false,
+      expires: { gt: new Date() },
+      token: { endsWith: `-${code}` },
+    },
+  });
+
+  if (!resetToken) {
+    return NextResponse.json({ error: 'Code invalide ou expiré.' }, { status: 400 });
   }
 
   const hashed = await bcrypt.hash(password, 12);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: resetToken.userId }, data: { password: hashed, failedLoginAttempts: 0, lockedUntil: null } }),
-    prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { used: true } }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed, failedLoginAttempts: 0, lockedUntil: null },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: { used: true },
+    }),
   ]);
 
   return NextResponse.json({ success: true });

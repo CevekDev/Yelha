@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
   const { code, email } = await req.json();
@@ -8,37 +9,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Code et email requis' }, { status: 400 });
   }
 
-  // Find user by email
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
 
-  // If already verified, just return success
-  if (user.emailVerified) return NextResponse.json({ success: true });
+  // Already verified — still issue auto-login token so they can log in
+  if (!user.emailVerified) {
+    const verificationToken = await prisma.userVerificationToken.findFirst({
+      where: {
+        userId: user.id,
+        token: code,
+        used: false,
+        expires: { gt: new Date() },
+      },
+    });
 
-  // Find valid code
-  const verificationToken = await prisma.userVerificationToken.findFirst({
-    where: {
+    if (!verificationToken) {
+      return NextResponse.json({ error: 'Code invalide ou expiré.' }, { status: 400 });
+    }
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      }),
+      prisma.userVerificationToken.update({
+        where: { id: verificationToken.id },
+        data: { used: true },
+      }),
+    ]);
+  }
+
+  // Generate a short-lived auto-login token (5 minutes)
+  const autoLoginToken = `al_${uuidv4()}`;
+  await prisma.userVerificationToken.create({
+    data: {
       userId: user.id,
-      token: code,
-      used: false,
-      expires: { gt: new Date() },
+      token: autoLoginToken,
+      expires: new Date(Date.now() + 5 * 60 * 1000),
     },
   });
 
-  if (!verificationToken) {
-    return NextResponse.json({ error: 'Code invalide ou expiré.' }, { status: 400 });
-  }
-
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: { emailVerified: new Date() },
-    }),
-    prisma.userVerificationToken.update({
-      where: { id: verificationToken.id },
-      data: { used: true },
-    }),
-  ]);
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, autoLoginToken, email: user.email });
 }
