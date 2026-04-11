@@ -75,6 +75,16 @@ export async function POST(
   const user = await prisma.user.findUnique({ where: { id: connection.userId } });
   if (!user || user.isBanned) return NextResponse.json({ ok: true });
 
+  // ── Capture owner Chat ID (first message ever received) ───────────────────
+  if (!connection.telegramChatId) {
+    await prisma.connection.update({
+      where: { id: connection.id },
+      data: { telegramChatId: String(chatId) },
+    });
+    // Update local reference so downstream logic has it
+    (connection as any).telegramChatId = String(chatId);
+  }
+
   // Handle /start command
   if (text === '/start') {
     if (connection.welcomeMessage) {
