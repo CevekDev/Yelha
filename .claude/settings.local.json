@@ -18,7 +18,10 @@
       "Bash(DATABASE_URL=\"postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true\" DIRECT_URL=\"postgresql://postgres.jnmyfjegzgtwqhbzcicu:qvR9HzW%26Um%2A%2B6Bx@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" npx prisma db push)",
       "Bash(findstr /i \"direct\\\\|database\")",
       "Bash(dir /b .env*)",
-      "Bash(find \"/c/Users/cevek/OneDrive/Bureau/YelhaDz/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"r2\\\\|R2\\\\|upload\\\\|storage\" {} \\\\;)"
+      "Bash(find \"/c/Users/cevek/OneDrive/Bureau/YelhaDz/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"r2\\\\|R2\\\\|upload\\\\|storage\" {} \\\\;)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\cevek\\\\OneDrive\\\\Bureau\\\\YelhaDz\\\\src\\\\app\\\\api\\\\orders\\\\[id]\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\cevek\\\\OneDrive\\\\Bureau\\\\YelhaDz\\\\src\\\\app\\\\api\\\\orders\\\\[id]\\\\confirm-request\")",
+      "Bash(del \"C:\\\\Users\\\\cevek\\\\OneDrive\\\\Bureau\\\\YelhaDz\\\\.env\")"
     ]
   }
 }
