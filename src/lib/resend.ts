@@ -1,20 +1,9 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM = 'Yelha <noreply@dms.yelha.net>';
 const ORANGE = '#FF6B2C';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://yelha-production.up.railway.app';
-
-// Gmail SMTP transporter — set GMAIL_USER + GMAIL_APP_PASSWORD in Railway env vars
-function createTransporter() {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
-}
-
-const FROM = `Yelha <${process.env.GMAIL_USER}>`;
 
 function baseTemplate(content: string) {
   return `
@@ -25,18 +14,18 @@ function baseTemplate(content: string) {
       <div style="background:#fff;padding:32px;border-radius:0 0 8px 8px;border:1px solid #e5e7eb;border-top:none;">
         ${content}
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0;" />
-        <p style="color:#aaa;font-size:11px;margin:0;">© 2025 Yelha · mehdimerah06.pro@gmail.com</p>
+        <p style="color:#aaa;font-size:11px;margin:0;">© 2025 Yelha · dms.yelha.net</p>
       </div>
     </div>
   `;
 }
 
 async function sendMail(to: string, subject: string, html: string) {
-  const transporter = createTransporter();
-  await transporter.sendMail({ from: FROM, to, subject, html });
+  const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+  if (error) throw new Error(error.message);
 }
 
-// Legacy link-based verification (kept for backwards compat)
+// Legacy compat
 export async function sendVerificationEmail(
   email: string,
   name: string,
@@ -83,7 +72,7 @@ export async function sendVerificationCodeEmail(
   await sendMail(email, subjects[locale] || subjects.fr, baseTemplate(content));
 }
 
-// Admin gift notification email
+// Admin gift notification
 export async function sendAdminGiftEmail(
   email: string,
   name: string,
@@ -100,7 +89,6 @@ export async function sendAdminGiftEmail(
       <p style="margin:0;color:#888;font-size:13px;">tokens ajoutés à votre compte</p>
     </div>
     ${reason ? `<p style="color:#555;line-height:1.7;">Motif : <strong>${reason}</strong></p>` : ''}
-    <p style="color:#555;line-height:1.7;">Connectez-vous à votre tableau de bord pour les utiliser.</p>
     <div style="text-align:center;margin:24px 0;">
       <a href="${APP_URL}/fr/dashboard/tokens"
          style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
@@ -109,7 +97,7 @@ export async function sendAdminGiftEmail(
     </div>
   `;
 
-  await sendMail(email, `[Yelha] 🎁 ${tokens.toLocaleString()} tokens offerts par Yelha`, baseTemplate(content));
+  await sendMail(email, `[Yelha] 🎁 ${tokens.toLocaleString()} tokens offerts`, baseTemplate(content));
 }
 
 export async function sendTokenPurchaseEmail(
@@ -118,17 +106,14 @@ export async function sendTokenPurchaseEmail(
   tokens: number,
   amountDZD: number
 ) {
-  const formattedAmount = amountDZD.toLocaleString('fr-FR') + ' DA';
-
   const content = `
     <h2 style="color:#111;margin-top:0;">Merci pour votre achat, ${name} !</h2>
     <p style="color:#555;line-height:1.7;">Votre paiement a bien été reçu. Vos tokens ont été ajoutés instantanément à votre compte.</p>
     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin:24px 0;text-align:center;">
       <p style="margin:0;color:#888;font-size:13px;font-family:monospace;">TOKENS ACHETÉS</p>
       <p style="margin:10px 0 4px;font-size:42px;font-weight:800;color:${ORANGE};font-family:monospace;">${tokens.toLocaleString()}</p>
-      <p style="margin:0;color:#888;font-size:13px;">Montant payé : <strong style="color:#333;">${formattedAmount}</strong></p>
+      <p style="margin:0;color:#888;font-size:13px;">Montant payé : <strong style="color:#333;">${amountDZD.toLocaleString('fr-FR')} DA</strong></p>
     </div>
-    <p style="color:#555;line-height:1.7;">Connectez-vous à votre tableau de bord pour commencer à utiliser vos tokens.</p>
     <div style="text-align:center;margin:24px 0;">
       <a href="${APP_URL}/fr/dashboard/tokens"
          style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
@@ -137,10 +122,10 @@ export async function sendTokenPurchaseEmail(
     </div>
   `;
 
-  await sendMail(email, `[Yelha] Confirmation d'achat — ${tokens.toLocaleString()} tokens`, baseTemplate(content));
+  await sendMail(email, `[Yelha] Confirmation — ${tokens.toLocaleString()} tokens achetés`, baseTemplate(content));
 }
 
-// Partner notification email
+// Partner welcome email
 export async function sendPartnerEmail(
   email: string,
   name: string,
@@ -153,35 +138,29 @@ export async function sendPartnerEmail(
 
   const content = `
     <h2 style="color:#111;margin-top:0;">🤝 Félicitations ${name} — Vous êtes maintenant Partenaire Yelha !</h2>
-
     <div style="background:linear-gradient(135deg,#FF6B2C15,#FF6B2C05);border:2px solid ${ORANGE}40;border-radius:12px;padding:24px;margin:24px 0;text-align:center;">
       <span style="background:${ORANGE};color:#fff;font-family:monospace;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:2px;text-transform:uppercase;">PARTENAIRE</span>
       <p style="margin:16px 0 4px;font-size:18px;font-weight:800;color:#111;font-family:monospace;">${tokensLabel}</p>
       <p style="margin:0;color:#888;font-size:13px;">Accès complet — Niveau Agence</p>
     </div>
-
-    <p style="color:#555;line-height:1.7;"><strong>Ce que vous obtenez en tant que partenaire :</strong></p>
+    <p style="color:#555;line-height:1.7;"><strong>Ce que vous obtenez :</strong></p>
     <ul style="color:#555;line-height:2;">
       <li>✅ Accès à toutes les fonctionnalités du plan Agence</li>
       <li>✅ Bots illimités sur vos connexions</li>
       <li>✅ Prise de commandes automatique</li>
-      <li>✅ Multi-bots Telegram & intégration livraison</li>
       <li>✅ Support prioritaire</li>
-      ${tokenLimit ? `<li>✅ ${tokenLimit.toLocaleString()} tokens disponibles sur votre compte</li>` : '<li>✅ Tokens illimités</li>'}
+      ${tokenLimit ? `<li>✅ ${tokenLimit.toLocaleString()} tokens disponibles</li>` : '<li>✅ Tokens illimités</li>'}
     </ul>
-
     ${adminMessage ? `<div style="background:#f9fafb;border-left:3px solid ${ORANGE};padding:12px 16px;margin:20px 0;border-radius:0 8px 8px 0;"><p style="margin:0;color:#555;font-size:14px;font-style:italic;">"${adminMessage}"</p><p style="margin:8px 0 0;color:#aaa;font-size:12px;">— L'équipe Yelha</p></div>` : ''}
-
     <div style="text-align:center;margin:28px 0;">
       <a href="${APP_URL}/fr/dashboard"
          style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
         Accéder à mon tableau de bord
       </a>
     </div>
-    <p style="color:#999;font-size:13px;">Merci de votre confiance. Bienvenue dans le programme partenaire Yelha !</p>
   `;
 
-  await sendMail(email, `[Yelha] 🤝 Vous êtes maintenant Partenaire Yelha !`, baseTemplate(content));
+  await sendMail(email, `[Yelha] 🤝 Bienvenue dans le programme Partenaire !`, baseTemplate(content));
 }
 
 export async function sendPasswordResetEmail(
@@ -191,7 +170,6 @@ export async function sendPasswordResetEmail(
   locale: string = 'fr'
 ) {
   const resetUrl = `${APP_URL}/${locale}/auth/reset-password?token=${token}`;
-
   const subjects: Record<string, string> = {
     fr: '[Yelha] Réinitialisez votre mot de passe',
     en: '[Yelha] Reset your password',
@@ -203,11 +181,9 @@ export async function sendPasswordResetEmail(
       ${locale === 'ar' ? 'مرحباً' : locale === 'en' ? 'Hello' : 'Bonjour'} ${name},
     </h2>
     <p style="color:#555;line-height:1.7;">
-      ${locale === 'ar'
-        ? 'انقر على الزر أدناه لإعادة تعيين كلمة المرور الخاصة بك:'
-        : locale === 'en'
-        ? 'Click the button below to reset your password:'
-        : 'Cliquez sur le bouton ci-dessous pour réinitialiser votre mot de passe :'}
+      ${locale === 'ar' ? 'انقر على الزر أدناه لإعادة تعيين كلمة المرور:'
+        : locale === 'en' ? 'Click below to reset your password:'
+        : 'Cliquez ci-dessous pour réinitialiser votre mot de passe :'}
     </p>
     <div style="text-align:center;margin:28px 0;">
       <a href="${resetUrl}"
@@ -216,7 +192,7 @@ export async function sendPasswordResetEmail(
       </a>
     </div>
     <p style="color:#999;font-size:13px;">
-      ${locale === 'ar' ? 'هذا الرابط صالح لمدة 15 دقيقة فقط.' : locale === 'en' ? 'This link expires in 15 minutes.' : 'Ce lien expire dans 15 minutes.'}
+      ${locale === 'ar' ? 'هذا الرابط صالح 15 دقيقة فقط.' : locale === 'en' ? 'Link expires in 15 minutes.' : 'Ce lien expire dans 15 minutes.'}
     </p>
   `;
 
