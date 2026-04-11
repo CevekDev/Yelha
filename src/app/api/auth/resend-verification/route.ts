@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
     data: { userId: user.id, token: code, expires: new Date(Date.now() + 24 * 60 * 60 * 1000) },
   });
 
-  await sendVerificationCodeEmail(email, user.name || '', code);
+  try {
+    await sendVerificationCodeEmail(email, user.name || '', code);
+  } catch (err) {
+    console.error('[resend-verification] email send failed:', err);
+  }
   return NextResponse.json({ success: true });
 }

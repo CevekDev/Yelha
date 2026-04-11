@@ -74,7 +74,12 @@ export async function POST(req: NextRequest) {
   });
 
   const locale = req.headers.get('accept-language')?.split(',')[0]?.split('-')[0] || 'fr';
-  await sendVerificationCodeEmail(email, name, code, locale);
+  try {
+    await sendVerificationCodeEmail(email, name, code, locale);
+  } catch (err) {
+    console.error('[register] email send failed:', err);
+    // Account is created — user can request a new code from the verify page
+  }
 
   return NextResponse.json({ success: true });
 }
