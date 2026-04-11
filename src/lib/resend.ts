@@ -141,6 +141,55 @@ export async function sendTokenPurchaseEmail(
   });
 }
 
+// Partner notification email
+export async function sendPartnerEmail(
+  email: string,
+  name: string,
+  tokenLimit: number | null,
+  adminMessage: string | null
+) {
+  const tokensLabel = tokenLimit
+    ? `${tokenLimit.toLocaleString()} tokens alloués`
+    : 'Tokens illimités';
+
+  const content = `
+    <h2 style="color:#111;margin-top:0;">🤝 Félicitations ${name} — Vous êtes maintenant Partenaire Yelha !</h2>
+
+    <div style="background:linear-gradient(135deg,#FF6B2C15,#FF6B2C05);border:2px solid ${ORANGE}40;border-radius:12px;padding:24px;margin:24px 0;text-align:center;">
+      <span style="background:${ORANGE};color:#fff;font-family:monospace;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:2px;text-transform:uppercase;">PARTENAIRE</span>
+      <p style="margin:16px 0 4px;font-size:18px;font-weight:800;color:#111;font-family:monospace;">${tokensLabel}</p>
+      <p style="margin:0;color:#888;font-size:13px;">Accès complet — Niveau Agence</p>
+    </div>
+
+    <p style="color:#555;line-height:1.7;"><strong>Ce que vous obtenez en tant que partenaire :</strong></p>
+    <ul style="color:#555;line-height:2;">
+      <li>✅ Accès à toutes les fonctionnalités du plan Agence</li>
+      <li>✅ Bots illimités sur vos connexions</li>
+      <li>✅ Prise de commandes automatique</li>
+      <li>✅ Multi-bots Telegram & intégration livraison</li>
+      <li>✅ Support prioritaire</li>
+      ${tokenLimit ? `<li>✅ ${tokenLimit.toLocaleString()} tokens disponibles sur votre compte</li>` : '<li>✅ Tokens illimités</li>'}
+    </ul>
+
+    ${adminMessage ? `<div style="background:#f9fafb;border-left:3px solid ${ORANGE};padding:12px 16px;margin:20px 0;border-radius:0 8px 8px 0;"><p style="margin:0;color:#555;font-size:14px;font-style:italic;">"${adminMessage}"</p><p style="margin:8px 0 0;color:#aaa;font-size:12px;">— L'équipe Yelha</p></div>` : ''}
+
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${APP_URL}/fr/dashboard"
+         style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
+        Accéder à mon tableau de bord
+      </a>
+    </div>
+    <p style="color:#999;font-size:13px;">Merci de votre confiance. Bienvenue dans le programme partenaire Yelha !</p>
+  `;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `[Yelha] 🤝 Vous êtes maintenant Partenaire Yelha !`,
+    html: baseTemplate(content),
+  });
+}
+
 export async function sendPasswordResetEmail(
   email: string,
   name: string,

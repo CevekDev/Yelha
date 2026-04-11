@@ -19,7 +19,10 @@ export default async function AdminAccountingPage({ params: { locale } }: { para
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-  // Revenus (achats de tokens)
+  // Revenus : achats réels (PURCHASE) + packs offerts par admin (PACK_GRANT avec pricePaid)
+  // EXCLUS : TRIAL, ADMIN_GRANT, BONUS, PROMO → comptés comme dépenses internes
+  const REVENUE_TYPES = ['PURCHASE', 'PACK_GRANT'] as const;
+
   const [
     allPurchases,
     monthPurchases,
@@ -30,17 +33,20 @@ export default async function AdminAccountingPage({ params: { locale } }: { para
     voiceMessages,
     monthTextMessages,
     monthVoiceMessages,
+    // Dépenses internes (tokens offerts sans pricePaid)
+    trialCount,
+    adminGrantCount,
   ] = await Promise.all([
     prisma.tokenTransaction.findMany({
-      where: { type: 'PURCHASE', pricePaid: { gt: 0 } },
-      select: { pricePaid: true, createdAt: true },
+      where: { type: { in: REVENUE_TYPES as any }, pricePaid: { gt: 0 } },
+      select: { pricePaid: true, createdAt: true, type: true },
     }),
     prisma.tokenTransaction.findMany({
-      where: { type: 'PURCHASE', pricePaid: { gt: 0 }, createdAt: { gte: monthStart } },
-      select: { pricePaid: true },
+      where: { type: { in: REVENUE_TYPES as any }, pricePaid: { gt: 0 }, createdAt: { gte: monthStart } },
+      select: { pricePaid: true, type: true },
     }),
     prisma.tokenTransaction.findMany({
-      where: { type: 'PURCHASE', pricePaid: { gt: 0 }, createdAt: { gte: lastMonthStart, lt: monthStart } },
+      where: { type: { in: REVENUE_TYPES as any }, pricePaid: { gt: 0 }, createdAt: { gte: lastMonthStart, lt: monthStart } },
       select: { pricePaid: true },
     }),
     // Logs de coûts API
@@ -51,6 +57,9 @@ export default async function AdminAccountingPage({ params: { locale } }: { para
     prisma.message.count({ where: { direction: 'inbound', type: 'voice' } }),
     prisma.message.count({ where: { direction: 'inbound', type: 'text', createdAt: { gte: monthStart } } }),
     prisma.message.count({ where: { direction: 'inbound', type: 'voice', createdAt: { gte: monthStart } } }),
+    // Dépenses internes (tokens offerts sans contrepartie financière)
+    prisma.tokenTransaction.aggregate({ where: { type: 'TRIAL' }, _sum: { amount: true } }),
+    prisma.tokenTransaction.aggregate({ where: { type: { in: ['ADMIN_GRANT', 'BONUS', 'PROMO'] as any } }, _sum: { amount: true } }),
   ]);
 
   // Calculs revenus DZD
@@ -79,6 +88,21 @@ export default async function AdminAccountingPage({ params: { locale } }: { para
   const totalProfitDZD = totalRevenueDZD - totalCostDZD;
   const monthProfitDZD = monthRevenueDZD - monthCostDZD;
   const marginPercent = monthRevenueDZD > 0 ? (monthProfitDZD / monthRevenueDZD) * 100 : 0;
+
+  // Dépenses internes (tokens non achetés, offerts gratuitement)
+  const trialTokens = trialCount._sum.amount || 0;
+  const grantedTokens = adminGrantCount._sum.amount || 0;
+  // Coût théorique : tokens offerts × prix moyen Starter (5 DA/token)
+  const AVG_TOKEN_PRICE = 5; // DA
+  const internalCostDZD = (trialTokens + grantedTokens) * AVG_TOKEN_PRICE;
+
+  // Pack grants (comptés comme revenu)
+  const packGrantRevenueDZD = allPurchases
+    .filter((p: any) => p.type === 'PACK_GRANT')
+    .reduce((a: number, p: any) => a + (p.pricePaid || 0), 0);
+  const realPurchaseRevenueDZD = allPurchases
+    .filter((p: any) => p.type === 'PURCHASE')
+    .reduce((a: number, p: any) => a + (p.pricePaid || 0), 0);
 
   // Coûts par type
   const deepseekCostUSD = (allCostLogs.length > 0
@@ -171,6 +195,38 @@ export default async function AdminAccountingPage({ params: { locale } }: { para
             </div>
           );
         })}
+      </div>
+
+      {/* Revenus : réels vs packs offerts + dépenses internes */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Achats réels */}
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <p className="font-mono text-xs text-white/40 mb-1 uppercase tracking-wider">Achats clients (réels)</p>
+          <p className="font-mono text-2xl font-bold text-white">{realPurchaseRevenueDZD.toLocaleString('fr-DZ')} <span className="text-sm text-white/30">DA</span></p>
+          <p className="font-mono text-xs text-white/30 mt-1">Paiements CIB / Dahabiya / CCP</p>
+          <div className="mt-3 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div className="h-full rounded-full bg-green-500" style={{ width: totalRevenueDZD > 0 ? `${(realPurchaseRevenueDZD / totalRevenueDZD) * 100}%` : '0%' }} />
+          </div>
+        </div>
+        {/* Packs offerts (comptés comme revenu) */}
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <p className="font-mono text-xs text-white/40 mb-1 uppercase tracking-wider">Packs admin (revenus)</p>
+          <p className="font-mono text-2xl font-bold text-white">{packGrantRevenueDZD.toLocaleString('fr-DZ')} <span className="text-sm text-white/30">DA</span></p>
+          <p className="font-mono text-xs text-white/30 mt-1">Packs offerts → comptés en CA</p>
+          <div className="mt-3 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: totalRevenueDZD > 0 ? `${(packGrantRevenueDZD / totalRevenueDZD) * 100}%` : '0%', background: ORANGE }} />
+          </div>
+        </div>
+        {/* Dépenses internes */}
+        <div className="rounded-2xl border border-red-500/10 bg-red-500/[0.03] p-5">
+          <p className="font-mono text-xs text-red-400/60 mb-1 uppercase tracking-wider">Dépenses internes</p>
+          <p className="font-mono text-2xl font-bold text-white">{internalCostDZD.toLocaleString('fr-DZ')} <span className="text-sm text-white/30">DA*</span></p>
+          <div className="mt-2 space-y-1">
+            <p className="font-mono text-xs text-white/30">Essais gratuits : {trialTokens.toLocaleString()} tokens</p>
+            <p className="font-mono text-xs text-white/30">Offerts (admin/bonus) : {grantedTokens.toLocaleString()} tokens</p>
+          </div>
+          <p className="font-mono text-[10px] text-white/20 mt-2">* Estimé à {AVG_TOKEN_PRICE} DA/token (coût d&apos;opportunité)</p>
+        </div>
       </div>
 
       {/* Coûts par service */}

@@ -4,11 +4,11 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendAdminGiftEmail } from '@/lib/resend';
 
-const PACKAGES: Record<string, { name: string; tokens: number }> = {
-  starter:  { name: 'Starter',  tokens: 500 },
-  business: { name: 'Business', tokens: 2000 },
-  pro:      { name: 'Pro',      tokens: 5000 },
-  agency:   { name: 'Agency',   tokens: 15000 },
+const PACKAGES: Record<string, { name: string; tokens: number; price: number }> = {
+  starter:  { name: 'Starter',  tokens: 500,   price: 2500 },
+  business: { name: 'Business', tokens: 2000,  price: 5000 },
+  pro:      { name: 'Pro',      tokens: 5000,  price: 10000 },
+  agency:   { name: 'Agency',   tokens: 15000, price: 22000 },
 };
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -19,15 +19,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const { tokens: rawTokens, reason, packKey } = await req.json();
 
-  // Resolve token count: either from packKey or direct amount
   let tokens: number;
   let packName: string | null = null;
+  let pricePaid: number | null = null; // only for PACK_GRANT (counted as revenue)
+  let transactionType: 'PACK_GRANT' | 'ADMIN_GRANT' = 'ADMIN_GRANT';
 
   if (packKey && PACKAGES[packKey]) {
+    // Pack offert → compté comme REVENU (comme si l'utilisateur avait acheté)
     tokens = PACKAGES[packKey].tokens;
     packName = PACKAGES[packKey].name;
+    pricePaid = PACKAGES[packKey].price;
+    transactionType = 'PACK_GRANT';
   } else {
+    // Tokens personnalisés → DÉPENSE INTERNE (ne compte pas comme revenu)
     tokens = Number(rawTokens);
+    transactionType = 'ADMIN_GRANT';
   }
 
   if (!tokens || tokens <= 0) {
@@ -42,19 +48,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     data: { tokenBalance: { increment: tokens } },
   });
 
+  const description = transactionType === 'PACK_GRANT'
+    ? `🎁 Pack ${packName} offert par l'administrateur${reason ? ` — ${reason}` : ''}`
+    : (reason || `🎁 Tokens offerts par l'administrateur`);
+
   await prisma.tokenTransaction.create({
     data: {
       userId: params.id,
-      type: 'ADMIN_GRANT',
+      type: transactionType,
       amount: tokens,
       balance: updated.tokenBalance,
-      description: packName
-        ? `🎁 Pack ${packName} offert par l'administrateur${reason ? ` — ${reason}` : ''}`
-        : reason || `🎁 Tokens offerts par l'administrateur`,
+      description,
+      // pricePaid seulement pour PACK_GRANT (comptabilité → revenu)
+      ...(pricePaid !== null ? { pricePaid } : {}),
     },
   });
 
-  // Send email notification to user (async, don't block response)
+  // Email notification (async)
   sendAdminGiftEmail(user.email, user.name || 'Client', tokens, packName, reason || null).catch(
     err => console.error('[gift email]', err)
   );
