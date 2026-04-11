@@ -21,7 +21,9 @@
       "Bash(find \"/c/Users/cevek/OneDrive/Bureau/YelhaDz/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"r2\\\\|R2\\\\|upload\\\\|storage\" {} \\\\;)",
       "Bash(mkdir -p \"C:\\\\Users\\\\cevek\\\\OneDrive\\\\Bureau\\\\YelhaDz\\\\src\\\\app\\\\api\\\\orders\\\\[id]\")",
       "Bash(mkdir -p \"C:\\\\Users\\\\cevek\\\\OneDrive\\\\Bureau\\\\YelhaDz\\\\src\\\\app\\\\api\\\\orders\\\\[id]\\\\confirm-request\")",
-      "Bash(del \"C:\\\\Users\\\\cevek\\\\OneDrive\\\\Bureau\\\\YelhaDz\\\\.env\")"
+      "Bash(del \"C:\\\\Users\\\\cevek\\\\OneDrive\\\\Bureau\\\\YelhaDz\\\\.env\")",
+      "Bash(npm uninstall:*)",
+      "Bash(node -e \"require\\('@paralleldrive/cuid2'\\)\")"
     ]
   }
 }

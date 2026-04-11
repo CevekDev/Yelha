@@ -4,20 +4,21 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
+import { sendWelcomeEmail } from './resend';
 import { z } from 'zod';
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1).optional(),
-  // passed from the 2FA page after code is verified
   twoFactorVerified: z.string().optional(),
+  autoLoginToken: z.string().optional(),
 });
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: '/fr/auth/signin',
@@ -34,19 +35,47 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
         twoFactorVerified: { label: '2FA Verified', type: 'text' },
+        autoLoginToken: { label: 'Auto Login Token', type: 'text' },
       },
       async authorize(credentials) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
-        const { email, password, twoFactorVerified } = parsed.data;
+        const { email, password, twoFactorVerified, autoLoginToken } = parsed.data;
+
+        // ── Path 0: Auto-login after email verification ──
+        if (autoLoginToken && autoLoginToken.startsWith('al_')) {
+          const tokenRecord = await prisma.userVerificationToken.findFirst({
+            where: {
+              token: autoLoginToken,
+              used: false,
+              expires: { gt: new Date() },
+            },
+            include: { user: true },
+          });
+          if (!tokenRecord) return null;
+          await prisma.userVerificationToken.update({
+            where: { id: tokenRecord.id },
+            data: { used: true },
+          });
+          const u = tokenRecord.user;
+          return {
+            id: u.id,
+            email: u.email,
+            name: u.name,
+            image: u.image,
+            role: u.role,
+            twoFactorEnabled: u.twoFactorEnabled,
+            twoFactorVerified: false,
+            unlimitedTokens: u.unlimitedTokens,
+          };
+        }
 
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
 
-        // ── Path A: 2FA verification already done (coming from /auth/verify-2fa) ──
+        // ── Path A: 2FA verification already done ──
         if (twoFactorVerified === 'true') {
-          // Trust: the /api/auth/2fa/verify endpoint already validated the code
           return {
             id: user.id,
             email: user.email,
@@ -61,7 +90,11 @@ export const authOptions: NextAuthOptions = {
 
         // ── Path B: Normal credential login ──
         if (!user.password || !password) return null;
-        if (!user.emailVerified) throw new Error('EMAIL_NOT_VERIFIED');
+
+        if (!user.emailVerified) {
+          // Include email in error so the signin page can redirect to verify-email
+          throw new Error(`EMAIL_NOT_VERIFIED:${user.email}`);
+        }
 
         if (user.lockedUntil && user.lockedUntil > new Date()) {
           throw new Error('ACCOUNT_LOCKED');
@@ -78,15 +111,12 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Reset failed attempts
         await prisma.user.update({
           where: { id: user.id },
           data: { failedLoginAttempts: 0, lockedUntil: null },
         });
 
-        // If 2FA is enabled → signal the signin page to redirect to verify-2fa
         if (user.twoFactorEnabled) {
-          // Send the code by email first
           try {
             await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth/2fa/send`, {
               method: 'POST',
@@ -94,7 +124,6 @@ export const authOptions: NextAuthOptions = {
               body: JSON.stringify({ email }),
             });
           } catch {}
-          // Return a special marker — the signin page will detect this and redirect
           throw new Error(`2FA_REQUIRED:${email}`);
         }
 
@@ -111,12 +140,20 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
+  events: {
+    async signIn({ user, isNewUser, account }) {
+      // Send welcome email to new Google OAuth users
+      if (isNewUser && account?.provider === 'google' && user.email) {
+        try {
+          await sendWelcomeEmail(user.email, user.name || 'Utilisateur');
+        } catch {}
+      }
+    },
+  },
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        // For Google OAuth, custom fields (role, twoFactorEnabled, unlimitedTokens)
-        // are NOT included in the user object — fetch them from DB.
         if (!(user as any).role) {
           const dbUser = await prisma.user.findUnique({
             where: { id: user.id },

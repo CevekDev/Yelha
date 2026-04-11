@@ -163,38 +163,67 @@ export async function sendPartnerEmail(
   await sendMail(email, `[Yelha] 🤝 Bienvenue dans le programme Partenaire !`, baseTemplate(content));
 }
 
+// Password reset — now sends a 6-digit code, not a link
 export async function sendPasswordResetEmail(
   email: string,
   name: string,
-  token: string,
+  code: string,
   locale: string = 'fr'
 ) {
-  const resetUrl = `${APP_URL}/${locale}/auth/reset-password?token=${token}`;
   const subjects: Record<string, string> = {
     fr: '[Yelha] Réinitialisez votre mot de passe',
     en: '[Yelha] Reset your password',
     ar: '[Yelha] إعادة تعيين كلمة المرور',
   };
 
+  const greeting = locale === 'ar' ? 'مرحباً' : locale === 'en' ? 'Hello' : 'Bonjour';
+  const intro = locale === 'ar'
+    ? 'أدخل الرمز أدناه لإعادة تعيين كلمة المرور الخاصة بك:'
+    : locale === 'en'
+    ? 'Enter the code below to reset your password:'
+    : 'Entrez ce code pour réinitialiser votre mot de passe :';
+  const expiry = locale === 'ar'
+    ? 'هذا الرمز صالح لمدة 15 دقيقة فقط.'
+    : locale === 'en'
+    ? 'This code expires in 15 minutes.'
+    : 'Ce code expire dans 15 minutes.';
+
   const content = `
-    <h2 style="color:#111;margin-top:0;">
-      ${locale === 'ar' ? 'مرحباً' : locale === 'en' ? 'Hello' : 'Bonjour'} ${name},
-    </h2>
-    <p style="color:#555;line-height:1.7;">
-      ${locale === 'ar' ? 'انقر على الزر أدناه لإعادة تعيين كلمة المرور:'
-        : locale === 'en' ? 'Click below to reset your password:'
-        : 'Cliquez ci-dessous pour réinitialiser votre mot de passe :'}
-    </p>
-    <div style="text-align:center;margin:28px 0;">
-      <a href="${resetUrl}"
-         style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
-        ${locale === 'ar' ? 'إعادة تعيين كلمة المرور' : locale === 'en' ? 'Reset Password' : 'Réinitialiser le mot de passe'}
-      </a>
+    <h2 style="color:#111;margin-top:0;">${greeting} ${name},</h2>
+    <p style="color:#555;line-height:1.7;">${intro}</p>
+    <div style="background:#f9fafb;border-radius:12px;padding:32px;text-align:center;margin:24px 0;border:2px solid ${ORANGE}30;">
+      <span style="font-size:52px;font-weight:900;font-family:monospace;color:${ORANGE};letter-spacing:14px;">${code}</span>
     </div>
-    <p style="color:#999;font-size:13px;">
-      ${locale === 'ar' ? 'هذا الرابط صالح 15 دقيقة فقط.' : locale === 'en' ? 'Link expires in 15 minutes.' : 'Ce lien expire dans 15 minutes.'}
-    </p>
+    <p style="color:#999;font-size:13px;">${expiry} Ne partagez ce code avec personne.</p>
+    <p style="color:#ccc;font-size:12px;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
   `;
 
   await sendMail(email, subjects[locale] || subjects.fr, baseTemplate(content));
+}
+
+// Welcome email for new Google OAuth users
+export async function sendWelcomeEmail(email: string, name: string) {
+  const content = `
+    <h2 style="color:#111;margin-top:0;">Bienvenue sur Yelha, ${name} ! 🎉</h2>
+    <p style="color:#555;line-height:1.7;">
+      Votre compte a bien été créé. Vous pouvez dès maintenant créer votre premier bot Telegram IA et commencer à automatiser vos réponses.
+    </p>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin:24px 0;">
+      <p style="margin:0 0 8px;color:#333;font-weight:600;font-family:monospace;">Ce que vous pouvez faire dès maintenant :</p>
+      <ul style="color:#555;line-height:2;margin:0;padding-left:20px;">
+        <li>🤖 Créer un bot Telegram IA personnalisé</li>
+        <li>🛒 Automatiser la prise de commandes</li>
+        <li>💬 Répondre en Arabe, Darija, Français et Anglais</li>
+        <li>📦 Gérer vos produits et commandes</li>
+      </ul>
+    </div>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${APP_URL}/fr/dashboard"
+         style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
+        Accéder à mon espace
+      </a>
+    </div>
+  `;
+
+  await sendMail(email, `[Yelha] Bienvenue ! Votre compte est prêt 🚀`, baseTemplate(content));
 }

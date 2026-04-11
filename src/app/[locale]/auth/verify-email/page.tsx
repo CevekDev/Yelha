@@ -5,7 +5,7 @@ import { useSearchParams, useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, Loader2, Mail, RefreshCw } from 'lucide-react';
-import { YelhaAuthCard } from '@/components/ui/yelha-signin';
+import { signIn } from 'next-auth/react';
 
 const ORANGE = '#FF6B2C';
 
@@ -25,6 +25,10 @@ export default function VerifyEmailPage() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    inputRefs.current[0]?.focus();
+  }, []);
 
   useEffect(() => {
     if (resendCooldown > 0) {
@@ -69,13 +73,25 @@ export default function VerifyEmailPage() {
         body: JSON.stringify({ code: fullCode, email }),
       });
       if (res.ok) {
+        const data = await res.json();
         setVerified(true);
-        setTimeout(() => router.push(`/${locale}/auth/signin`), 2500);
+        // Auto-login with the one-time token
+        const result = await signIn('credentials', {
+          email,
+          autoLoginToken: data.autoLoginToken,
+          redirect: false,
+        });
+        if (result?.ok) {
+          router.push(`/${locale}/dashboard`);
+        } else {
+          // Fallback to signin page if auto-login fails
+          router.push(`/${locale}/auth/signin`);
+        }
       } else {
         const data = await res.json();
         toast({
           title: tCommon('error'),
-          description: data.error || t('twoFactor.invalid'),
+          description: data.error || 'Code invalide',
           variant: 'destructive',
         });
         setCode(['', '', '', '', '', '']);
@@ -113,7 +129,7 @@ export default function VerifyEmailPage() {
             <CheckCircle className="w-10 h-10 text-green-400" />
           </div>
           <h2 className="font-mono font-bold text-white text-2xl">Email vérifié !</h2>
-          <p className="font-mono text-white/40 text-sm">Redirection vers la connexion...</p>
+          <p className="font-mono text-white/40 text-sm">Connexion en cours...</p>
           <Loader2 className="w-5 h-5 text-white/20 animate-spin mx-auto" />
         </div>
       </div>
@@ -123,9 +139,7 @@ export default function VerifyEmailPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#0A0A0A' }}>
       <div className="w-full max-w-md">
-        {/* Card */}
         <div className="bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-8 shadow-2xl">
-          {/* Icon */}
           <div className="text-center mb-6">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
@@ -133,12 +147,12 @@ export default function VerifyEmailPage() {
             >
               <Mail className="w-8 h-8" style={{ color: ORANGE }} />
             </div>
-            <h1 className="font-mono font-bold text-white text-xl mb-2">{t('verifyEmail')}</h1>
+            <h1 className="font-mono font-bold text-white text-xl mb-2">Vérifiez votre email</h1>
             <p className="font-mono text-white/40 text-sm leading-relaxed">
-              {t('verifyEmailDesc')}
+              Un code à 6 chiffres a été envoyé à
             </p>
             {email && (
-              <p className="font-mono text-sm mt-2 font-semibold" style={{ color: ORANGE }}>
+              <p className="font-mono text-sm mt-1 font-semibold" style={{ color: ORANGE }}>
                 {email}
               </p>
             )}
@@ -166,7 +180,6 @@ export default function VerifyEmailPage() {
             ))}
           </div>
 
-          {/* Verify button */}
           <button
             onClick={handleVerify}
             disabled={loading || code.join('').length < 6}
@@ -174,23 +187,18 @@ export default function VerifyEmailPage() {
             style={{ background: ORANGE }}
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {t('twoFactor.verify')}
+            Vérifier et se connecter
           </button>
 
-          {/* Resend */}
           <button
             onClick={handleResend}
             disabled={resendLoading || resendCooldown > 0}
             className="w-full py-2.5 rounded-xl font-mono text-xs text-white/40 hover:text-white/70 transition-colors flex items-center justify-center gap-2"
           >
-            {resendLoading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3.5 h-3.5" />
-            )}
-            {resendCooldown > 0
-              ? `${t('twoFactor.resendIn')} ${resendCooldown}${t('twoFactor.seconds')}`
-              : t('resendEmail')}
+            {resendLoading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <RefreshCw className="w-3.5 h-3.5" />}
+            {resendCooldown > 0 ? `Renvoyer dans ${resendCooldown}s` : 'Renvoyer le code'}
           </button>
         </div>
       </div>
