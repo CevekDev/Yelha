@@ -22,46 +22,88 @@ function baseTemplate(content: string) {
   `;
 }
 
+// Legacy link-based verification (kept for backwards compat)
 export async function sendVerificationEmail(
   email: string,
   name: string,
   token: string,
   locale: string = 'fr'
 ) {
-  const verifyUrl = `${APP_URL}/${locale}/auth/verify-email?token=${token}`;
+  await sendVerificationCodeEmail(email, name, token, locale);
+}
 
+// New: 6-digit code verification email
+export async function sendVerificationCodeEmail(
+  email: string,
+  name: string,
+  code: string,
+  locale: string = 'fr'
+) {
   const subjects: Record<string, string> = {
-    fr: '[Yelha] Vérifiez votre adresse email',
-    en: '[Yelha] Verify your email address',
-    ar: '[Yelha] تحقق من عنوان بريدك الإلكتروني',
+    fr: '[Yelha] Votre code de vérification',
+    en: '[Yelha] Your verification code',
+    ar: '[Yelha] رمز التحقق الخاص بك',
   };
 
+  const greeting = locale === 'ar' ? 'مرحباً' : locale === 'en' ? 'Hello' : 'Bonjour';
+  const intro = locale === 'ar'
+    ? 'أدخل الرمز أدناه للتحقق من بريدك الإلكتروني:'
+    : locale === 'en'
+    ? 'Enter the code below to verify your email address:'
+    : 'Entrez ce code sur le site pour vérifier votre adresse email :';
+  const expiry = locale === 'ar'
+    ? 'هذا الرمز صالح لمدة 24 ساعة.'
+    : locale === 'en'
+    ? 'This code expires in 24 hours.'
+    : 'Ce code expire dans 24 heures.';
+
   const content = `
-    <h2 style="color:#111;margin-top:0;">
-      ${locale === 'ar' ? 'مرحباً' : locale === 'en' ? 'Hello' : 'Bonjour'} ${name} !
-    </h2>
-    <p style="color:#555;line-height:1.7;">
-      ${locale === 'ar'
-        ? 'انقر على الزر أدناه للتحقق من بريدك الإلكتروني:'
-        : locale === 'en'
-        ? 'Click the button below to verify your email address:'
-        : 'Cliquez sur le bouton ci-dessous pour vérifier votre adresse email :'}
-    </p>
-    <div style="text-align:center;margin:28px 0;">
-      <a href="${verifyUrl}"
-         style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
-        ${locale === 'ar' ? 'تحقق من البريد الإلكتروني' : locale === 'en' ? 'Verify Email' : 'Vérifier mon email'}
-      </a>
+    <h2 style="color:#111;margin-top:0;">${greeting} ${name} !</h2>
+    <p style="color:#555;line-height:1.7;">${intro}</p>
+    <div style="background:#f9fafb;border-radius:12px;padding:32px;text-align:center;margin:24px 0;border:2px solid ${ORANGE}30;">
+      <span style="font-size:52px;font-weight:900;font-family:monospace;color:${ORANGE};letter-spacing:14px;">${code}</span>
     </div>
-    <p style="color:#999;font-size:13px;">
-      ${locale === 'ar' ? 'هذا الرابط صالح لمدة 24 ساعة.' : locale === 'en' ? 'This link expires in 24 hours.' : 'Ce lien expire dans 24 heures.'}
-    </p>
+    <p style="color:#999;font-size:13px;">${expiry} Ne partagez ce code avec personne.</p>
   `;
 
   await resend.emails.send({
     from: FROM,
     to: email,
     subject: subjects[locale] || subjects.fr,
+    html: baseTemplate(content),
+  });
+}
+
+// Admin gift notification email
+export async function sendAdminGiftEmail(
+  email: string,
+  name: string,
+  tokens: number,
+  packName: string | null,
+  reason: string | null
+) {
+  const content = `
+    <h2 style="color:#111;margin-top:0;">🎁 Vous avez reçu des tokens, ${name} !</h2>
+    <p style="color:#555;line-height:1.7;">L'équipe Yelha vous a offert des tokens sur votre compte.</p>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin:24px 0;text-align:center;">
+      <p style="margin:0;color:#888;font-size:13px;font-family:monospace;">${packName ? `PACK ${packName.toUpperCase()}` : 'TOKENS OFFERTS'}</p>
+      <p style="margin:10px 0 4px;font-size:42px;font-weight:800;color:${ORANGE};font-family:monospace;">${tokens.toLocaleString()}</p>
+      <p style="margin:0;color:#888;font-size:13px;">tokens ajoutés à votre compte</p>
+    </div>
+    ${reason ? `<p style="color:#555;line-height:1.7;">Motif : <strong>${reason}</strong></p>` : ''}
+    <p style="color:#555;line-height:1.7;">Connectez-vous à votre tableau de bord pour les utiliser.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${APP_URL}/fr/dashboard/tokens"
+         style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-family:monospace;font-size:14px;">
+        Voir mon solde
+      </a>
+    </div>
+  `;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `[Yelha] 🎁 ${tokens.toLocaleString()} tokens offerts par Yelha`,
     html: baseTemplate(content),
   });
 }

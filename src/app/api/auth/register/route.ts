@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendVerificationEmail } from '@/lib/resend';
+import { sendVerificationCodeEmail } from '@/lib/resend';
 import { authRatelimit } from '@/lib/ratelimit';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
 import { passwordSchema } from '@/lib/validations';
 
 const TRIAL_TOKENS = 25;
@@ -14,6 +13,10 @@ const schema = z.object({
   email: z.string().email(),
   password: passwordSchema,
 });
+
+function generateCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
@@ -60,17 +63,18 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const token = uuidv4();
+  // Generate 6-digit verification code (stored as token in DB)
+  const code = generateCode();
   await prisma.userVerificationToken.create({
     data: {
       userId: user.id,
-      token,
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      token: code,
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     },
   });
 
   const locale = req.headers.get('accept-language')?.split(',')[0]?.split('-')[0] || 'fr';
-  await sendVerificationEmail(email, name, token, locale);
+  await sendVerificationCodeEmail(email, name, code, locale);
 
   return NextResponse.json({ success: true });
 }
