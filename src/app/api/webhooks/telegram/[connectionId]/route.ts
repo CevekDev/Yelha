@@ -262,6 +262,18 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
     .map((d: any) => `Type: ${d.questionType}\nRéponse à adapter: ${d.response}`)
     .join('\n---\n');
 
+  const products = await prisma.product.findMany({
+    where: { userId: connection.userId, isActive: true },
+    select: { name: true, description: true, price: true, stock: true },
+    take: 50,
+  });
+
+  const productsStr = products.length > 0
+    ? products.map((p: any) =>
+        `• ${p.name}${p.price ? ` — ${p.price} DA` : ''}${p.stock !== null ? ` (Stock: ${p.stock})` : ''}${p.description ? `\n  ${p.description}` : ''}`
+      ).join('\n')
+    : 'Aucun produit configuré pour le moment.';
+
   const { buildSystemPrompt } = await import('@/lib/deepseek');
   let prompt = buildSystemPrompt({
     botName: connection.botName || 'Assistant',
@@ -274,6 +286,7 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
     detailResponses: detailStr,
   });
 
+  prompt += `\n\nCATALOGUE PRODUITS DE LA BOUTIQUE :\n${productsStr}\n\nRéponds aux questions sur ces produits avec les informations ci-dessus. Ne propose jamais de produits qui ne sont pas dans cette liste.`;
   prompt += LANGUAGE_INSTRUCTION;
   prompt += COMMERCE_INSTRUCTION;
   prompt += `\nSi le message est hors-sujet commerce, commence ta réponse par [HORS_SUJET] puis donne une réponse polie courte.`;

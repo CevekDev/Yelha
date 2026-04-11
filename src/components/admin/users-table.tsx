@@ -1,8 +1,15 @@
 'use client';
 import { useState, useTransition } from 'react';
-import { Users, Search, CheckCircle, XCircle, Shield, User, Ban, Gift, X, Check, AlertCircle } from 'lucide-react';
+import { Users, Search, CheckCircle, XCircle, Shield, User, Ban, Gift, X, Check, AlertCircle, Package } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
+
+const PACKAGES = [
+  { key: 'starter',  name: 'Starter',  tokens: 500,   color: '#60a5fa' },
+  { key: 'business', name: 'Business', tokens: 2000,  color: ORANGE },
+  { key: 'pro',      name: 'Pro',      tokens: 5000,  color: '#8B5CF6' },
+  { key: 'agency',   name: 'Agency',   tokens: 15000, color: '#10B981' },
+];
 
 interface AdminUser {
   id: string;
@@ -13,7 +20,6 @@ interface AdminUser {
   unlimitedTokens: boolean;
   isBanned: boolean;
   createdAt: Date | string;
-  twoFactorEnabled: boolean;
   emailVerified: Date | string | null;
   _count: { connections: number };
 }
@@ -26,6 +32,8 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
 
   // Gift modal
   const [giftUser, setGiftUser] = useState<AdminUser | null>(null);
+  const [giftMode, setGiftMode] = useState<'pack' | 'custom'>('pack');
+  const [giftPackKey, setGiftPackKey] = useState('');
   const [giftTokens, setGiftTokens] = useState('');
   const [giftReason, setGiftReason] = useState('');
   const [giftSuccess, setGiftSuccess] = useState('');
@@ -45,20 +53,29 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
   });
 
   const handleGift = () => {
-    if (!giftUser || !giftTokens || Number(giftTokens) <= 0) return;
+    if (!giftUser) return;
+    const payload: any = { reason: giftReason };
+    if (giftMode === 'pack') {
+      if (!giftPackKey) return;
+      payload.packKey = giftPackKey;
+    } else {
+      if (!giftTokens || Number(giftTokens) <= 0) return;
+      payload.tokens = Number(giftTokens);
+    }
+
     startTransition(async () => {
       const res = await fetch(`/api/admin/users/${giftUser.id}/gift`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokens: Number(giftTokens), reason: giftReason }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const data = await res.json();
         setUsers(prev => prev.map(u => u.id === giftUser.id ? { ...u, tokenBalance: data.newBalance } : u));
-        setGiftSuccess(`✅ ${giftTokens} tokens offerts à ${giftUser.name || giftUser.email}`);
-        setGiftTokens('');
-        setGiftReason('');
-        setTimeout(() => { setGiftUser(null); setGiftSuccess(''); }, 2000);
+        const pack = PACKAGES.find(p => p.key === giftPackKey);
+        const label = pack ? `Pack ${pack.name} (${pack.tokens.toLocaleString()} tokens)` : `${giftTokens} tokens`;
+        setGiftSuccess(`✅ ${label} offert à ${giftUser.name || giftUser.email} — email envoyé`);
+        setTimeout(() => { setGiftUser(null); setGiftSuccess(''); setGiftPackKey(''); setGiftTokens(''); setGiftReason(''); }, 2500);
       }
     });
   };
@@ -123,7 +140,7 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
           <table className="w-full text-xs font-mono">
             <thead>
               <tr className="border-b border-white/[0.04]">
-                {['Utilisateur', 'Tokens', 'Bots', '2FA', 'Email vérifié', 'Rôle', 'Inscrit le', 'Actions'].map(h => (
+                {['Utilisateur', 'Tokens', 'Bots', 'Email vérifié', 'Rôle', 'Inscrit le', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-white/30 font-normal uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
@@ -147,11 +164,6 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
                   </td>
                   <td className="px-4 py-3 text-white/50">{u._count.connections}</td>
                   <td className="px-4 py-3">
-                    {u.twoFactorEnabled
-                      ? <CheckCircle className="w-3.5 h-3.5 text-green-400" />
-                      : <XCircle className="w-3.5 h-3.5 text-white/20" />}
-                  </td>
-                  <td className="px-4 py-3">
                     {u.emailVerified
                       ? <CheckCircle className="w-3.5 h-3.5 text-green-400" />
                       : <XCircle className="w-3.5 h-3.5 text-red-400/60" />}
@@ -174,15 +186,13 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      {/* Gift tokens */}
                       <button
-                        onClick={() => { setGiftUser(u); setGiftTokens(''); setGiftReason(''); setGiftSuccess(''); }}
+                        onClick={() => { setGiftUser(u); setGiftMode('pack'); setGiftPackKey(''); setGiftTokens(''); setGiftReason(''); setGiftSuccess(''); }}
                         className="p-1.5 rounded-lg text-white/20 hover:text-green-400 hover:bg-green-500/10 transition-all"
-                        title="Offrir des tokens"
+                        title="Offrir un pack ou des tokens"
                       >
                         <Gift className="w-3.5 h-3.5" />
                       </button>
-                      {/* Ban / Unban */}
                       <button
                         onClick={() => { setBanUser(u); setBanReason(''); }}
                         className={`p-1.5 rounded-lg transition-all ${u.isBanned
@@ -198,7 +208,7 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-white/20">
+                  <td colSpan={7} className="px-4 py-10 text-center text-white/20">
                     Aucun utilisateur trouvé
                   </td>
                 </tr>
@@ -235,17 +245,60 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
                     Solde actuel : <span style={{ color: ORANGE }}>{giftUser.tokenBalance.toLocaleString()} tokens</span>
                   </p>
                 </div>
-                <div>
-                  <label className="block font-mono text-xs text-white/50 mb-1.5">Nombre de tokens à offrir</label>
-                  <input
-                    type="number"
-                    value={giftTokens}
-                    onChange={e => setGiftTokens(e.target.value)}
-                    placeholder="Ex: 500"
-                    min="1"
-                    className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
-                  />
+
+                {/* Mode tabs */}
+                <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+                  {[
+                    { key: 'pack', label: 'Pack prédéfini', icon: Package },
+                    { key: 'custom', label: 'Montant libre', icon: Gift },
+                  ].map(tab => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setGiftMode(tab.key as 'pack' | 'custom')}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-mono text-xs transition-all"
+                        style={giftMode === tab.key
+                          ? { background: `${ORANGE}25`, color: ORANGE }
+                          : { color: 'rgba(255,255,255,0.3)' }}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {giftMode === 'pack' ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {PACKAGES.map(pack => (
+                      <button
+                        key={pack.key}
+                        onClick={() => setGiftPackKey(pack.key)}
+                        className="p-3 rounded-xl border transition-all text-left"
+                        style={giftPackKey === pack.key
+                          ? { borderColor: pack.color, background: `${pack.color}15` }
+                          : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
+                      >
+                        <p className="font-mono text-xs font-bold" style={{ color: pack.color }}>{pack.name}</p>
+                        <p className="font-mono text-[10px] text-white/40 mt-0.5">{pack.tokens.toLocaleString()} tokens</p>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-mono text-xs text-white/50 mb-1.5">Nombre de tokens à offrir</label>
+                    <input
+                      type="number"
+                      value={giftTokens}
+                      onChange={e => setGiftTokens(e.target.value)}
+                      placeholder="Ex: 500"
+                      min="1"
+                      className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="block font-mono text-xs text-white/50 mb-1.5">Raison (optionnel)</label>
                   <input
@@ -256,13 +309,18 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
                     className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
                   />
                 </div>
+
+                <p className="font-mono text-[10px] text-white/30 flex items-center gap-1">
+                  📧 L&apos;utilisateur recevra un email de notification automatiquement.
+                </p>
+
                 <div className="flex gap-3 pt-2">
                   <button onClick={() => setGiftUser(null)} className="flex-1 py-2.5 rounded-xl font-mono text-sm text-white/50 border border-white/[0.08] hover:border-white/20 transition-all">
                     Annuler
                   </button>
                   <button
                     onClick={handleGift}
-                    disabled={isPending || !giftTokens || Number(giftTokens) <= 0}
+                    disabled={isPending || (giftMode === 'pack' ? !giftPackKey : (!giftTokens || Number(giftTokens) <= 0))}
                     className="flex-1 py-2.5 rounded-xl font-mono text-sm font-semibold text-white bg-green-600 hover:bg-green-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {isPending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Gift className="w-4 h-4" />}

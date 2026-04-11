@@ -118,8 +118,7 @@ export default function YelhaPricing({ locale }: YelhaPricingProps) {
                   whileInView="visible"
                   viewport={{ once: true }}
                   variants={cardVariants}
-                  whileHover={{ y: -6, scale: 1.02 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
+                  whileHover={{ y: -6, scale: 1.02, transition: { type: 'spring', stiffness: 300, damping: 20 } }}
                   className={`relative flex flex-col rounded-2xl p-6 border ${
                     plan.popular
                       ? 'border-orange-500/60 bg-gradient-to-b from-white/[0.08] to-white/[0.03]'
