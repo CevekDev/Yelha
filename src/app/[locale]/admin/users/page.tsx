@@ -19,6 +19,7 @@ export default async function AdminUsersPage({ params: { locale } }: { params: {
       role: true, unlimitedTokens: true, createdAt: true,
       emailVerified: true,
       isBanned: true,
+      isPartner: true, partnerTokenLimit: true,
       _count: { select: { connections: true } },
     },
   });

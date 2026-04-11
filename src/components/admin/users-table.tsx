@@ -1,6 +1,6 @@
 'use client';
 import { useState, useTransition } from 'react';
-import { Users, Search, CheckCircle, XCircle, Shield, User, Ban, Gift, X, Check, AlertCircle, Package } from 'lucide-react';
+import { Users, Search, CheckCircle, XCircle, Shield, User, Ban, Gift, X, Check, AlertCircle, Package, Handshake, Infinity } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
 
@@ -18,6 +18,8 @@ interface AdminUser {
   tokenBalance: number;
   role: string;
   unlimitedTokens: boolean;
+  isPartner: boolean;
+  partnerTokenLimit: number | null;
   isBanned: boolean;
   createdAt: Date | string;
   emailVerified: Date | string | null;
@@ -27,8 +29,14 @@ interface AdminUser {
 export default function AdminUsersTable({ users: initialUsers }: { users: AdminUser[] }) {
   const [users, setUsers] = useState<AdminUser[]>(initialUsers);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'ALL' | 'USER' | 'ADMIN' | 'BANNED'>('ALL');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'USER' | 'ADMIN' | 'PARTNER' | 'BANNED'>('ALL');
   const [isPending, startTransition] = useTransition();
+
+  // Partner modal
+  const [partnerUser, setPartnerUser] = useState<AdminUser | null>(null);
+  const [partnerTokenLimit, setPartnerTokenLimit] = useState('');
+  const [partnerMessage, setPartnerMessage] = useState('');
+  const [partnerSuccess, setPartnerSuccess] = useState('');
 
   // Gift modal
   const [giftUser, setGiftUser] = useState<AdminUser | null>(null);
@@ -48,9 +56,43 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
       (u.name || '').toLowerCase().includes(search.toLowerCase());
     const matchRole =
       roleFilter === 'ALL' ||
-      (roleFilter === 'BANNED' ? u.isBanned : u.role === roleFilter && !u.isBanned);
+      (roleFilter === 'BANNED' ? u.isBanned :
+       roleFilter === 'PARTNER' ? u.isPartner :
+       u.role === roleFilter && !u.isBanned);
     return matchSearch && matchRole;
   });
+
+  const handlePartner = () => {
+    if (!partnerUser) return;
+    const limit = partnerTokenLimit ? Number(partnerTokenLimit) : null;
+    startTransition(async () => {
+      const res = await fetch(`/api/admin/users/${partnerUser.id}/partner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokenLimit: limit, message: partnerMessage }),
+      });
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u.id === partnerUser.id
+          ? { ...u, role: 'PARTNER', isPartner: true, partnerTokenLimit: limit, unlimitedTokens: !limit, tokenBalance: u.tokenBalance + (limit || 0) }
+          : u
+        ));
+        setPartnerSuccess(`✅ ${partnerUser.name || partnerUser.email} est maintenant Partenaire — email envoyé`);
+        setTimeout(() => { setPartnerUser(null); setPartnerSuccess(''); setPartnerTokenLimit(''); setPartnerMessage(''); }, 2500);
+      }
+    });
+  };
+
+  const handleRemovePartner = (user: AdminUser) => {
+    startTransition(async () => {
+      const res = await fetch(`/api/admin/users/${user.id}/partner`, { method: 'DELETE' });
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u.id === user.id
+          ? { ...u, role: 'USER', isPartner: false, partnerTokenLimit: null, unlimitedTokens: false }
+          : u
+        ));
+      }
+    });
+  };
 
   const handleGift = () => {
     if (!giftUser) return;
@@ -109,13 +151,13 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-              {(['ALL', 'USER', 'ADMIN', 'BANNED'] as const).map(r => (
+              {(['ALL', 'USER', 'PARTNER', 'ADMIN', 'BANNED'] as const).map(r => (
                 <button
                   key={r}
                   onClick={() => setRoleFilter(r)}
                   className="px-2.5 py-1 rounded-md font-mono text-xs transition-all"
                   style={roleFilter === r
-                    ? { background: r === 'BANNED' ? '#ef444425' : ORANGE + '25', color: r === 'BANNED' ? '#ef4444' : ORANGE }
+                    ? { background: r === 'BANNED' ? '#ef444425' : r === 'PARTNER' ? '#10B98125' : ORANGE + '25', color: r === 'BANNED' ? '#ef4444' : r === 'PARTNER' ? '#10B981' : ORANGE }
                     : { color: 'rgba(255,255,255,0.3)' }}
                 >
                   {r}
@@ -175,10 +217,12 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
                         ? { background: '#ef444415', color: '#ef4444' }
                         : u.role === 'ADMIN'
                           ? { background: `${ORANGE}20`, color: ORANGE }
-                          : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}
+                          : u.isPartner
+                            ? { background: '#10B98120', color: '#10B981' }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}
                     >
-                      {u.isBanned ? <Ban className="w-2.5 h-2.5" /> : u.role === 'ADMIN' ? <Shield className="w-2.5 h-2.5" /> : <User className="w-2.5 h-2.5" />}
-                      {u.isBanned ? 'BANNI' : u.role}
+                      {u.isBanned ? <Ban className="w-2.5 h-2.5" /> : u.role === 'ADMIN' ? <Shield className="w-2.5 h-2.5" /> : u.isPartner ? <Handshake className="w-2.5 h-2.5" /> : <User className="w-2.5 h-2.5" />}
+                      {u.isBanned ? 'BANNI' : u.isPartner ? 'PARTENAIRE' : u.role}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-white/30" suppressHydrationWarning>
@@ -193,6 +237,17 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
                       >
                         <Gift className="w-3.5 h-3.5" />
                       </button>
+                      {!u.isBanned && (
+                        <button
+                          onClick={() => { setPartnerUser(u); setPartnerTokenLimit(u.partnerTokenLimit?.toString() || ''); setPartnerMessage(''); setPartnerSuccess(''); }}
+                          className={`p-1.5 rounded-lg transition-all ${u.isPartner
+                            ? 'text-green-400 hover:text-red-400 hover:bg-red-500/10'
+                            : 'text-white/20 hover:text-green-400 hover:bg-green-500/10'}`}
+                          title={u.isPartner ? 'Gérer le partenariat' : 'Promouvoir Partenaire'}
+                        >
+                          <Handshake className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => { setBanUser(u); setBanReason(''); }}
                         className={`p-1.5 rounded-lg transition-all ${u.isBanned
@@ -327,6 +382,117 @@ export default function AdminUsersTable({ users: initialUsers }: { users: AdminU
                     Offrir
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Partner modal */}
+      {partnerUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setPartnerUser(null)} />
+          <div className="relative w-full max-w-md bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-mono font-bold text-white text-lg flex items-center gap-2">
+                <Handshake className="w-5 h-5 text-green-400" />
+                {partnerUser.isPartner ? 'Gérer le partenariat' : 'Promouvoir Partenaire'}
+              </h2>
+              <button onClick={() => setPartnerUser(null)} className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {partnerSuccess ? (
+              <div className="text-center py-4">
+                <p className="font-mono text-sm text-green-400">{partnerSuccess}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]">
+                  <p className="font-mono text-xs text-white/50">{partnerUser.name || partnerUser.email}</p>
+                  <p className="font-mono text-sm font-bold text-white mt-0.5">
+                    Solde actuel : <span style={{ color: ORANGE }}>{partnerUser.tokenBalance.toLocaleString()} tokens</span>
+                  </p>
+                </div>
+
+                {partnerUser.isPartner ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 bg-green-500/[0.08] border border-green-500/20 rounded-xl p-3">
+                      <Handshake className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      <p className="font-mono text-xs text-white/60">
+                        Partenaire actif — {partnerUser.partnerTokenLimit
+                          ? `${partnerUser.partnerTokenLimit.toLocaleString()} tokens alloués`
+                          : 'Tokens illimités'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleRemovePartner(partnerUser)}
+                      disabled={isPending}
+                      className="w-full py-2.5 rounded-xl font-mono text-sm font-semibold text-white bg-red-600 hover:bg-red-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isPending
+                        ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        : <XCircle className="w-4 h-4" />}
+                      Retirer le rang Partenaire
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block font-mono text-xs text-white/50 mb-1.5">
+                        Limite de tokens <span className="text-white/25">(vide = illimité)</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={partnerTokenLimit}
+                          onChange={e => setPartnerTokenLimit(e.target.value)}
+                          placeholder="Ex: 15000 — vide pour illimité"
+                          min="0"
+                          className="w-full px-4 py-2.5 pr-10 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-green-500/40"
+                        />
+                        {!partnerTokenLimit && (
+                          <Infinity className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-mono text-xs text-white/50 mb-1.5">Message personnalisé (optionnel)</label>
+                      <textarea
+                        value={partnerMessage}
+                        onChange={e => setPartnerMessage(e.target.value)}
+                        placeholder="Ex: Bienvenue dans le programme partenaire..."
+                        rows={3}
+                        className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-green-500/40 resize-none"
+                      />
+                    </div>
+
+                    <p className="font-mono text-[10px] text-white/30">
+                      📧 L&apos;utilisateur recevra un email de bienvenue partenaire automatiquement.
+                    </p>
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        onClick={() => setPartnerUser(null)}
+                        className="flex-1 py-2.5 rounded-xl font-mono text-sm text-white/50 border border-white/[0.08] hover:border-white/20 transition-all"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        onClick={handlePartner}
+                        disabled={isPending}
+                        className="flex-1 py-2.5 rounded-xl font-mono text-sm font-semibold text-white bg-green-600 hover:bg-green-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isPending
+                          ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : <Handshake className="w-4 h-4" />}
+                        Promouvoir Partenaire
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

@@ -10,6 +10,7 @@ datasource db {
 
 enum UserRole {
   USER
+  PARTNER
   ADMIN
 }
 
@@ -37,13 +38,14 @@ enum OrderStatus {
 }
 
 enum TokenTransactionType {
-  PURCHASE
-  USAGE
-  REFUND
-  BONUS
-  TRIAL
-  PROMO
-  ADMIN_GRANT
+  PURCHASE    // achat réel → revenu
+  PACK_GRANT  // pack offert par admin → compté comme revenu (remplace achat)
+  USAGE       // consommation de tokens → dépense API
+  REFUND      // remboursement
+  BONUS       // bonus offert → dépense interne
+  TRIAL       // essai gratuit → dépense interne
+  PROMO       // code promo → dépense interne
+  ADMIN_GRANT // tokens personnalisés offerts par admin → dépense interne
 }
 
 model User {
@@ -66,6 +68,9 @@ model User {
   unlimitedTokens       Boolean   @default(false)
   trialUsed             Boolean   @default(false)
   planLevel             PlanLevel @default(FREE)
+  isPartner             Boolean   @default(false)
+  partnerTokenLimit     Int?      // tokens mensuels alloués au partenaire (null = illimité)
+  partnerSince          DateTime?
   isBanned              Boolean   @default(false)
   bannedAt              DateTime?
   bannedReason          String?
