@@ -204,94 +204,73 @@ export function buildSystemPrompt(params: {
     commerceTypeInstructions,
   } = params;
 
+  // ── Personnalité ─────────────────────────────────────────────────────────
   let personalityDesc = '';
-
   if (botPersonality) {
-    if (typeof botPersonality.preset === 'string' || typeof botPersonality.custom === 'string') {
-      if (botPersonality.custom?.trim()) {
-        personalityDesc = botPersonality.custom.trim();
-      } else if (botPersonality.preset && PERSONALITY_PRESETS[botPersonality.preset]) {
-        personalityDesc = PERSONALITY_PRESETS[botPersonality.preset];
-      }
-    } else {
-      const { formality, friendliness, responseLength, emojiUsage } = botPersonality;
-      if (formality <= 3) personalityDesc += 'Be casual and relaxed in your tone. ';
-      else if (formality >= 8) personalityDesc += 'Be formal and professional. ';
-      if (friendliness >= 8) personalityDesc += 'Be very warm, friendly and empathetic. ';
-      if (responseLength <= 3) personalityDesc += 'Keep responses very brief and concise. ';
-      else if (responseLength >= 8) personalityDesc += 'Give detailed and comprehensive responses. ';
-      if (emojiUsage >= 7) personalityDesc += 'Use emojis frequently to make responses engaging. ';
-      else if (emojiUsage <= 2) personalityDesc += 'Avoid using emojis. ';
+    if (botPersonality.custom?.trim()) {
+      personalityDesc = botPersonality.custom.trim();
+    } else if (botPersonality.preset && PERSONALITY_PRESETS[botPersonality.preset]) {
+      personalityDesc = PERSONALITY_PRESETS[botPersonality.preset];
     }
   }
 
-  // ── Langue ────────────────────────────────────────────────────────────────
-  const responseLanguage: string = botPersonality?.responseLanguage || 'auto';
-  const allowEmojis: boolean = botPersonality?.allowEmojis !== false;
-
-  const langLabels: Record<string, string> = {
-    ar: 'arabe classique (فصحى)',
-    fr: 'français',
-    en: 'anglais',
-    dz: 'darija algérienne',
-  };
-
-  const languageRules = responseLanguage !== 'auto'
-    ? `LANGUE IMPOSÉE PAR LE PROPRIÉTAIRE : tu réponds TOUJOURS en ${langLabels[responseLanguage] || responseLanguage}, sans exception, quelle que soit la langue du client.`
-    : `Détecte la langue du client et réponds TOUJOURS dans cette même langue. Langues supportées : arabe classique, darija, français, anglais et toute autre langue.`;
-
-  // ── Construire les ordres du propriétaire ─────────────────────────────────
-  const ownerOrders: string[] = [];
-
-  if (responseLanguage !== 'auto') {
-    ownerOrders.push(`Langue : réponds TOUJOURS en ${langLabels[responseLanguage] || responseLanguage}, sans exception, même si le client écrit dans une autre langue.`);
-  }
-  if (!allowEmojis) {
-    ownerOrders.push(`Emojis : N'utilise JAMAIS d'emojis ni d'icônes spéciaux dans aucun de tes messages, y compris dans les récapitulatifs de commande.`);
-  }
-  if (customInstructions && customInstructions.trim() && customInstructions.trim() !== 'Aucune') {
-    ownerOrders.push(`Instructions spécifiques :\n${customInstructions.trim()}`);
-  }
-
-  const detailSection = detailResponses
-    ? `\n\nRÉPONSES DÉTAILLÉES CONTEXTUELLES (adapte le style mais garde toujours ces informations exactes) :\n${detailResponses}`
-    : '';
-
-  const contextSection = contactContext || '';
+  // ── Langue (auto-detect toujours, le propriétaire peut forcer via customInstructions) ───
+  const languageRules = `Détecte la langue du client et réponds TOUJOURS dans cette même langue. Langues supportées : arabe classique, darija algérienne, français, anglais et toute autre langue.`;
 
   const resolvedCommerceType = commerceType || 'products';
   const resolvedCommerceInstructions = commerceTypeInstructions || COMMERCE_TYPE_INSTRUCTIONS[resolvedCommerceType] || COMMERCE_TYPE_INSTRUCTIONS.products;
+
+  const contextSection = contactContext || '';
 
   let prompt = globalPrompt
     .replace(/{botName}/g, botName)
     .replace(/{businessName}/g, businessName)
     .replace('{botPersonality}', personalityDesc)
     .replace('{predefinedResponses}', predefinedResponses || 'Aucune')
-    .replace('{customInstructions}', customInstructions || 'Aucune')
+    .replace('{customInstructions}', 'Voir bloc ORDRES DU PROPRIÉTAIRE en haut.')
     .replace('{isFirstMessage}', isFirstMessage ? 'oui' : 'non')
     .replace('{commerceType}', resolvedCommerceType)
     .replace('{commerceTypeInstructions}', resolvedCommerceInstructions)
     .replace('{languageRules}', languageRules);
 
-  prompt += detailSection;
   prompt += contextSection;
 
-  // ── Bloc priorité absolue — en tête du prompt ─────────────────────────────
-  if (ownerOrders.length > 0) {
-    const ordersText = ownerOrders.map((o, i) => `${i + 1}. ${o}`).join('\n');
-    const header = [
-      '╔══════════════════════════════════════════════════╗',
-      '║   ORDRES DU PROPRIÉTAIRE — PRIORITÉ ABSOLUE     ║',
-      '╚══════════════════════════════════════════════════╝',
-      'Tu es un employé. Le propriétaire est ton patron. Ces ordres s\'appliquent à CHAQUE réponse, sans exception.',
-      'Ils écrasent toutes les autres règles ci-dessous. Si tu as répondu différemment dans les messages précédents, corrige immédiatement.',
-      '',
-      ordersText,
-      '══════════════════════════════════════════════════',
-      '',
-    ].join('\n');
-    prompt = header + prompt;
+  // ── Bloc ORDRES DU PROPRIÉTAIRE — toujours en tête ───────────────────────
+  const ownerOrders: string[] = [];
+
+  // 1. Personnalité — obligatoire
+  if (personalityDesc) {
+    ownerOrders.push(`PERSONNALITÉ ET STYLE : ${personalityDesc}`);
   }
 
-  return prompt;
+  // 2. Réponses contextuelles détaillées
+  if (detailResponses && detailResponses.trim()) {
+    ownerOrders.push(
+      `RÉPONSES OBLIGATOIRES PAR CONTEXTE — utilise ces informations EXACTES lorsque la question correspond, adapte le style mais ne change PAS les données :\n${detailResponses.trim()}`
+    );
+  }
+
+  // 3. Instructions personnalisées du propriétaire
+  if (customInstructions && customInstructions.trim() && customInstructions.trim() !== 'Aucune') {
+    ownerOrders.push(`INSTRUCTIONS PERSONNALISÉES :\n${customInstructions.trim()}`);
+  }
+
+  const ordersText = ownerOrders.length > 0
+    ? ownerOrders.map((o, i) => `${i + 1}. ${o}`).join('\n\n')
+    : '(Aucune instruction spécifique — applique les règles générales ci-dessous.)';
+
+  const header = [
+    '╔══════════════════════════════════════════════════╗',
+    '║   ORDRES DU PROPRIÉTAIRE — PRIORITÉ ABSOLUE     ║',
+    '╚══════════════════════════════════════════════════╝',
+    'Tu es un employé. Le propriétaire est ton patron. Ces ordres remplacent TOUT ce qui suit.',
+    '⚠️ Ces réglages viennent d\'être mis à jour. Applique-les DÈS CE MESSAGE.',
+    'Si tu as agi différemment dans les échanges précédents, CORRIGE IMMÉDIATEMENT.',
+    '',
+    ordersText,
+    '══════════════════════════════════════════════════',
+    '',
+  ].join('\n');
+
+  return header + prompt;
 }

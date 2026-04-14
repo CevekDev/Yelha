@@ -41,10 +41,6 @@ export async function createChargilyCheckout(params: {
     locale: params.locale ?? 'fr',
     collect_shipping_address: 0,
     metadata: params.metadata,
-    customer: {
-      name: params.customerName || params.customerEmail,
-      email: params.customerEmail,
-    },
   };
 
   if (params.paymentMethod) {

@@ -307,7 +307,7 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
 
   const productsStr = products.length > 0
     ? products.map((p: any) =>
-        `• ${p.name}${p.price ? ` — ${p.price} DA` : ''}${p.stock !== null ? ` (Stock: ${p.stock})` : ''}${p.description ? `\n  ${p.description}` : ''}`
+        `• ${p.name}${p.price ? ` — ${p.price} DA` : ''}${p.stock !== null ? ` (Stock: ${p.stock})` : ''}${p.description ? ` [détails disponibles si demandé]` : ''}`
       ).join('\n')
     : 'Aucun produit configuré.';
 
@@ -324,12 +324,23 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
     commerceType: connection.commerceType || 'products',
   });
 
+  // Build per-product detail map for the description section
+  const productDetailsStr = products
+    .filter((p: any) => p.description)
+    .map((p: any) => `• ${p.name} : ${p.description}`)
+    .join('\n');
+
   return prompt + `\n\n══════════════════════════════════════
 CATALOGUE PRODUITS DE LA BOUTIQUE
 ══════════════════════════════════════
 ${productsStr}
 
-Important : utilise UNIQUEMENT les produits listés ci-dessus. Ne mentionne jamais un produit absent de cette liste.`;
+RÈGLES PRODUITS :
+- Quand tu parles d'un produit (recommandation ou réponse), donne TOUJOURS son nom, prix et stock.
+- Ne donne PAS la description à moins que le client demande explicitement plus de détails.
+- N'invente JAMAIS un produit absent de cette liste.
+
+${productDetailsStr ? `DESCRIPTIONS DÉTAILLÉES (à n'utiliser QUE si le client demande des détails) :\n${productDetailsStr}` : ''}`;
 }
 
 async function saveOrderFromBot(connection: any, contactId: string, contactName: string | null, data: any) {
