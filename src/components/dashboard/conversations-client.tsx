@@ -262,10 +262,43 @@ export default function ConversationsClient({ connections }: { connections: Conn
         </div>
       )}
 
+      {/* Mobile bot selector tabs */}
+      {connections.length > 1 && mobileView === 'list' && (
+        <div className="lg:hidden overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex gap-2 min-w-max">
+            {connections.map((conn) => (
+              <button
+                key={conn.id}
+                onClick={() => {
+                  setSelectedConnection(conn);
+                  setSelectedConv(conn.conversations[0] || null);
+                  setMessages([]);
+                }}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs border transition-all flex-shrink-0"
+                style={
+                  selectedConnection?.id === conn.id
+                    ? { background: `${ORANGE}20`, borderColor: `${ORANGE}40`, color: ORANGE }
+                    : { borderColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }
+                }
+              >
+                <span>{conn.platform === 'TELEGRAM' ? '✈️' : '💬'}</span>
+                <span className="font-semibold">{conn.name}</span>
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(255,255,255,0.1)' }}
+                >
+                  {conn.conversations.length}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main panel */}
-      <div className="grid grid-cols-12 gap-4 h-[600px]">
-        {/* Bot selector */}
-        <div className={`col-span-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex-col overflow-hidden ${mobileView === 'thread' ? 'hidden lg:flex' : 'flex'} lg:flex`}>
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-12 lg:gap-4 lg:h-[620px]">
+        {/* Bot selector — desktop only */}
+        <div className="hidden lg:flex flex-col lg:col-span-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
           <div className="p-3 border-b border-white/[0.06]">
             <p className="font-mono text-[10px] font-semibold text-white/30 uppercase tracking-wider">{t('bots')}</p>
           </div>
@@ -312,7 +345,10 @@ export default function ConversationsClient({ connections }: { connections: Conn
         </div>
 
         {/* Conversation list */}
-        <div className={`col-span-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden ${mobileView === 'thread' ? 'hidden lg:flex' : 'flex'} lg:flex`}>
+        <div
+          className={`rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden lg:col-span-3 ${mobileView === 'thread' ? 'hidden lg:flex' : 'flex'}`}
+          style={mobileView === 'list' ? { minHeight: '60vh' } : undefined}
+        >
           <div className="p-3 border-b border-white/[0.06] space-y-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
@@ -421,7 +457,10 @@ export default function ConversationsClient({ connections }: { connections: Conn
         </div>
 
         {/* Message thread */}
-        <div className={`col-span-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden ${mobileView === 'list' ? 'hidden lg:flex' : 'flex'} lg:flex`}>
+        <div
+          className={`rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col overflow-hidden lg:col-span-7 ${mobileView === 'list' ? 'hidden lg:flex' : 'flex'}`}
+          style={mobileView === 'thread' ? { height: 'calc(100dvh - 190px)' } : undefined}
+        >
           {selectedConv ? (
             <>
               {/* Thread header */}

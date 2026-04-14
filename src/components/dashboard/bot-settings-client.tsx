@@ -91,6 +91,17 @@ export default function BotSettingsClient({ connections }: { connections: Connec
     (selectedConn?.botPersonality as any)?.custom || ''
   );
 
+  // Advanced bot rules
+  const [responseLanguage, setResponseLanguage] = useState<string>(
+    (selectedConn?.botPersonality as any)?.responseLanguage || 'auto'
+  );
+  const [allowEmojis, setAllowEmojis] = useState<boolean>(
+    (selectedConn?.botPersonality as any)?.allowEmojis !== false
+  );
+  const [deliveryFee, setDeliveryFee] = useState<number | null>(
+    (selectedConn?.botPersonality as any)?.deliveryFee ?? null
+  );
+
   // Detail responses
   const [details, setDetails] = useState<DetailResponse[]>(
     selectedConn?.detailResponses || []
@@ -107,6 +118,9 @@ export default function BotSettingsClient({ connections }: { connections: Connec
     setCommerceType(conn.commerceType || 'products');
     setPersonality((conn.botPersonality as any)?.preset || 'professional');
     setCustomPersonality((conn.botPersonality as any)?.custom || '');
+    setResponseLanguage((conn.botPersonality as any)?.responseLanguage || 'auto');
+    setAllowEmojis((conn.botPersonality as any)?.allowEmojis !== false);
+    setDeliveryFee((conn.botPersonality as any)?.deliveryFee ?? null);
     setDetails(conn.detailResponses);
     setIsSuspended(conn.isSuspended);
     setError('');
@@ -147,7 +161,13 @@ export default function BotSettingsClient({ connections }: { connections: Connec
           businessName: businessName.trim(),
           customInstructions: customInstructions.trim() || null,
           commerceType,
-          botPersonality: { preset: personality, custom: customPersonality.trim() || null },
+          botPersonality: {
+            preset: personality,
+            custom: customPersonality.trim() || null,
+            responseLanguage,
+            allowEmojis,
+            deliveryFee: deliveryFee ?? null,
+          },
         }),
       });
       if (!res.ok) {
@@ -414,6 +434,67 @@ export default function BotSettingsClient({ connections }: { connections: Connec
                   )}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Response language */}
+          <div>
+            <label className="block font-mono text-xs text-white/50 mb-2">Langue de réponse du bot</label>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { id: 'auto', label: '🌐 Auto' },
+                { id: 'ar',   label: '🇩🇿 Arabe classique' },
+                { id: 'dz',   label: '🤝 Darija DZ' },
+                { id: 'fr',   label: '🇫🇷 Français' },
+                { id: 'en',   label: '🇬🇧 English' },
+              ].map((lang) => (
+                <button
+                  key={lang.id}
+                  type="button"
+                  onClick={() => setResponseLanguage(lang.id)}
+                  className="px-3 py-2 rounded-xl font-mono text-xs border transition-all"
+                  style={
+                    responseLanguage === lang.id
+                      ? { background: `${ORANGE}20`, borderColor: `${ORANGE}40`, color: ORANGE }
+                      : { borderColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }
+                  }
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Emoji toggle + delivery fee */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+              <div>
+                <p className="font-mono text-sm text-white/80">Emojis</p>
+                <p className="font-mono text-xs text-white/30 mt-0.5">Autoriser les emojis dans les réponses</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAllowEmojis(!allowEmojis)}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ml-3"
+                style={{ background: allowEmojis ? '#10B981' : 'rgba(255,255,255,0.1)' }}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowEmojis ? 'translate-x-6' : 'translate-x-1'}`}
+                />
+              </button>
+            </div>
+            <div>
+              <label className="block font-mono text-xs text-white/50 mb-1.5">
+                Frais de livraison (DA) <span className="text-white/20">— 0 = non applicable</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={deliveryFee ?? ''}
+                onChange={(e) => setDeliveryFee(e.target.value !== '' ? Number(e.target.value) : null)}
+                placeholder="ex: 500"
+                className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
+              />
             </div>
           </div>
 

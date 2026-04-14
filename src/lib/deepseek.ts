@@ -204,7 +204,6 @@ export function buildSystemPrompt(params: {
   let personalityDesc = '';
 
   if (botPersonality) {
-    // Nouveau format : { preset: string, custom: string }
     if (typeof botPersonality.preset === 'string' || typeof botPersonality.custom === 'string') {
       if (botPersonality.custom?.trim()) {
         personalityDesc = botPersonality.custom.trim();
@@ -212,7 +211,6 @@ export function buildSystemPrompt(params: {
         personalityDesc = PERSONALITY_PRESETS[botPersonality.preset];
       }
     } else {
-      // Ancien format : { formality, friendliness, responseLength, emojiUsage }
       const { formality, friendliness, responseLength, emojiUsage } = botPersonality;
       if (formality <= 3) personalityDesc += 'Be casual and relaxed in your tone. ';
       else if (formality >= 8) personalityDesc += 'Be formal and professional. ';
@@ -224,7 +222,24 @@ export function buildSystemPrompt(params: {
     }
   }
 
-  // Construire les sections optionnelles
+  // ── Règles forcées (extraites de botPersonality) ──────────────────────────
+  const responseLanguage: string = botPersonality?.responseLanguage || 'auto';
+  const allowEmojis: boolean = botPersonality?.allowEmojis !== false;
+
+  const forcedRules: string[] = [];
+  if (responseLanguage && responseLanguage !== 'auto') {
+    const langLabels: Record<string, string> = {
+      ar: 'arabe classique (فصحى) UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
+      fr: 'français UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
+      en: 'anglais UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
+      dz: 'darija algérienne UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
+    };
+    forcedRules.push(`- LANGUE IMPOSÉE : Réponds TOUJOURS en ${langLabels[responseLanguage] || responseLanguage}. Cette règle annule la détection automatique de langue.`);
+  }
+  if (!allowEmojis) {
+    forcedRules.push("- EMOJIS INTERDITS : N'utilise JAMAIS d'emojis (📦 ✅ ⚠️ 🎉 etc.) ni d'icônes spéciaux dans aucune de tes réponses, y compris les récapitulatifs de commande. Utilise du texte brut uniquement.");
+  }
+
   const detailSection = detailResponses
     ? `\n\nRÉPONSES DÉTAILLÉES CONTEXTUELLES (adapte le style mais garde toujours ces informations exactes) :\n${detailResponses}`
     : '';
@@ -246,6 +261,13 @@ export function buildSystemPrompt(params: {
 
   prompt += detailSection;
   prompt += contextSection;
+
+  // Préfixer les règles absolues si nécessaire
+  if (forcedRules.length > 0) {
+    const sep = '═'.repeat(50);
+    const forcedSection = `⚠️⚠️⚠️ RÈGLES ABSOLUES — PRIORITÉ MAXIMALE — S'APPLIQUENT SUR TOUT ⚠️⚠️⚠️\nCes règles ont PRIORITÉ sur toutes les autres instructions ci-dessous :\n${forcedRules.join('\n')}\n${sep}\n\n`;
+    prompt = forcedSection + prompt;
+  }
 
   return prompt;
 }

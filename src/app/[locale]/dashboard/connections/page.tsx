@@ -282,18 +282,13 @@ export default function ConnectionsPage() {
                   )}
                 </div>
 
-                <div className="flex gap-2">
-                  <Link href={`/${locale}/dashboard/connections/${conn.id}`} className="flex-1">
-                    <button className="w-full flex items-center justify-center gap-1.5 font-mono text-xs text-white/70 hover:text-white border border-white/[0.07] hover:border-white/[0.15] rounded-xl py-2 transition-all">
-                      <Settings className="w-3.5 h-3.5" />
-                      {t('configure')}
-                    </button>
-                  </Link>
+                <div className="flex justify-end">
                   <button
                     onClick={() => handleDelete(conn.id)}
-                    className="px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 font-mono text-xs transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
+                    Supprimer
                   </button>
                 </div>
               </div>
