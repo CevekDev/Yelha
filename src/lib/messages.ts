@@ -110,6 +110,8 @@ export function buildContactContextString(ctx: {
 
 /**
  * Récupère les N derniers messages d'une conversation pour l'historique IA.
+ * S'arrête au dernier marqueur [SETTINGS_RESET] pour garantir que les
+ * nouveaux réglages prennent effet immédiatement.
  */
 export async function getRecentHistory(
   conversationId: string
@@ -118,10 +120,15 @@ export async function getRecentHistory(
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
     take: HISTORY_MESSAGES,
-    select: { direction: true, content: true },
+    select: { direction: true, content: true, type: true },
   });
 
-  return messages
+  // Stop at the most recent settings_reset marker (newest-first scan)
+  const cutIdx = messages.findIndex((m) => m.type === 'settings_reset');
+  const relevant = cutIdx === -1 ? messages : messages.slice(0, cutIdx);
+
+  return relevant
+    .filter((m) => m.direction === 'inbound' || m.direction === 'outbound')
     .reverse()
     .map((m) => ({
       role: m.direction === 'inbound' ? 'user' : 'assistant',

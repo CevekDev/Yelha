@@ -48,8 +48,9 @@ export async function POST(
   const telegramUser = message.from;
   const contactId = String(chatId);
   const contactName = telegramUser
-    ? [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ') || null
+    ? [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ') || telegramUser.username || null
     : null;
+  const telegramUsername: string | null = telegramUser?.username || null;
 
   const user = await prisma.user.findUnique({ where: { id: connection.userId } });
   if (!user || user.isBanned) return NextResponse.json({ ok: true });
@@ -69,7 +70,7 @@ export async function POST(
     if (connection.welcomeMessage) {
       await sendTelegramMessage(token, chatId, connection.welcomeMessage);
     }
-    await upsertContactContext(connection.id, contactId, { contactName });
+    await upsertContactContext(connection.id, contactId, { contactName, metadata: telegramUsername ? { telegramUsername } : undefined });
     return NextResponse.json({ ok: true });
   }
 
@@ -189,7 +190,6 @@ export async function POST(
     // ── Commande annulée ─────────────────────────────────────────────────
     if (rawResponse.includes('[COMMANDE_ANNULEE]')) {
       responseText = rawResponse.replace('[COMMANDE_ANNULEE]', '').trim();
-      // Annuler la commande PENDING la plus récente de ce contact
       try {
         const latestOrder = await prisma.order.findFirst({
           where: { connectionId: connection.id, contactId, status: 'PENDING' },
@@ -197,13 +197,31 @@ export async function POST(
         });
         if (latestOrder) {
           await prisma.order.update({ where: { id: latestOrder.id }, data: { status: 'CANCELLED' } });
-          console.log(`[Telegram] Order cancelled by client: ${latestOrder.id}`);
+          console.log(`[Telegram] Order cancelled: ${latestOrder.id}`);
         }
       } catch (e) {
         console.error('[Telegram] Order cancellation error', e);
       }
     }
-    // ── Commande confirmée → extraire JSON et sauvegarder ────────────────
+    // ── Commande modifiée → mettre à jour la commande existante ──────────
+    else if (rawResponse.includes('[COMMANDE_MODIFIEE:')) {
+      const tagStart = rawResponse.indexOf('[COMMANDE_MODIFIEE:');
+      const jsonStart = tagStart + '[COMMANDE_MODIFIEE:'.length;
+      const tagEnd = rawResponse.lastIndexOf('}]');
+      if (tagEnd > jsonStart) {
+        const jsonStr = rawResponse.slice(jsonStart, tagEnd + 1);
+        responseText = (rawResponse.slice(0, tagStart) + rawResponse.slice(tagEnd + 2)).trim();
+        try {
+          const orderData = JSON.parse(jsonStr);
+          await updateOrCreateOrder(connection, contactId, contactName, orderData);
+        } catch (e) {
+          console.error('[Telegram] Order modify error', e, 'JSON:', jsonStr);
+        }
+      } else {
+        responseText = rawResponse;
+      }
+    }
+    // ── Commande confirmée → créer ou réactiver une commande existante ───
     else {
       const tagStart = rawResponse.indexOf('[COMMANDE_CONFIRMEE:');
       if (tagStart !== -1) {
@@ -214,7 +232,21 @@ export async function POST(
           responseText = (rawResponse.slice(0, tagStart) + rawResponse.slice(tagEnd + 2)).trim();
           try {
             const orderData = JSON.parse(jsonStr);
-            await saveOrderFromBot(connection, contactId, contactName, orderData);
+            // If there's a recently cancelled order for this contact, update it instead of creating new
+            const recentCancelled = await prisma.order.findFirst({
+              where: {
+                connectionId: connection.id,
+                contactId,
+                status: 'CANCELLED',
+                updatedAt: { gte: new Date(Date.now() - 10 * 60 * 1000) }, // within last 10 min
+              },
+              orderBy: { updatedAt: 'desc' },
+            });
+            if (recentCancelled) {
+              await updateOrCreateOrder(connection, contactId, contactName, orderData, recentCancelled.id);
+            } else {
+              await saveOrderFromBot(connection, contactId, contactName, orderData);
+            }
           } catch (e) {
             console.error('[Telegram] Order parse error', e, 'JSON:', jsonStr);
           }
@@ -274,7 +306,7 @@ export async function POST(
       inbound: { content: inboundContent, type: messageType, tokensUsed: tokensRequired },
       outbound: { content: responseText },
     });
-    await upsertContactContext(connection.id, contactId, { contactName });
+    await upsertContactContext(connection.id, contactId, { contactName, metadata: telegramUsername ? { telegramUsername } : undefined });
   } catch (err) {
     console.error('[Telegram] Save error', err);
   }
@@ -396,5 +428,76 @@ async function saveOrderFromBot(connection: any, contactId: string, contactName:
   });
 
   console.log(`[Telegram] Order saved: ${order.id} for ${fullName}`);
+}
+
+/**
+ * Update an existing order (by orderId) or create a new one.
+ * Used for COMMANDE_MODIFIEE and for re-confirming after cancellation.
+ */
+async function updateOrCreateOrder(
+  connection: any,
+  contactId: string,
+  contactName: string | null,
+  data: any,
+  existingOrderId?: string
+) {
+  const allProducts = await prisma.product.findMany({
+    where: { userId: connection.userId, isActive: true },
+    select: { id: true, name: true, price: true },
+  });
+
+  const items = (data.produits || []).map((item: any) => {
+    const lower = (item.nom ?? '').toLowerCase();
+    let found = allProducts.find((p) => p.name.toLowerCase() === lower);
+    if (!found && lower.length >= 4) {
+      found = allProducts.find(
+        (p) => p.name.toLowerCase().includes(lower) || (p.name.length >= 4 && lower.includes(p.name.toLowerCase()))
+      );
+    }
+    return { name: item.nom || 'Produit', quantity: item.quantite || 1, price: found?.price || item.prix || 0, productId: found?.id || null };
+  });
+
+  const total = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+  const fullName = [data.prenom, data.nom].filter(Boolean).join(' ') || contactName || 'Client';
+  const notes = `Wilaya: ${data.wilaya || ''} — Commune: ${data.commune || ''}`;
+
+  if (existingOrderId) {
+    // Delete old items and replace with new ones
+    await prisma.orderItem.deleteMany({ where: { orderId: existingOrderId } });
+    await prisma.order.update({
+      where: { id: existingOrderId },
+      data: {
+        contactName: fullName,
+        contactPhone: data.telephone || null,
+        totalAmount: total,
+        notes,
+        status: 'PENDING',
+        items: { create: items.map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price, ...(i.productId ? { productId: i.productId } : {}) })) },
+      },
+    });
+    console.log(`[Telegram] Order updated: ${existingOrderId} for ${fullName}`);
+  } else {
+    // Find most recent PENDING order for this contact and update it
+    const latest = await prisma.order.findFirst({
+      where: { connectionId: connection.id, contactId, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (latest) {
+      await prisma.orderItem.deleteMany({ where: { orderId: latest.id } });
+      await prisma.order.update({
+        where: { id: latest.id },
+        data: {
+          contactName: fullName,
+          contactPhone: data.telephone || null,
+          totalAmount: total,
+          notes,
+          items: { create: items.map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price, ...(i.productId ? { productId: i.productId } : {}) })) },
+        },
+      });
+      console.log(`[Telegram] Order modified in place: ${latest.id} for ${fullName}`);
+    } else {
+      await saveOrderFromBot(connection, contactId, contactName, data);
+    }
+  }
 }
 

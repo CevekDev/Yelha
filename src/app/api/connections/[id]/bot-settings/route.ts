@@ -36,5 +36,23 @@ export async function PUT(
     },
   });
 
+  // Inject a settings-reset marker in every conversation so the AI
+  // ignores history before this point on the next message.
+  const conversations = await prisma.conversation.findMany({
+    where: { connectionId: params.id },
+    select: { id: true },
+  });
+  if (conversations.length > 0) {
+    await prisma.message.createMany({
+      data: conversations.map((c) => ({
+        conversationId: c.id,
+        direction: 'system',
+        type: 'settings_reset',
+        content: '[SETTINGS_RESET]',
+        tokensUsed: 0,
+      })),
+    });
+  }
+
   return NextResponse.json(updated);
 }
