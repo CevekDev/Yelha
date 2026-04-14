@@ -11,21 +11,21 @@ import { useTranslations } from 'next-intl';
 const ORANGE = '#FF6B2C';
 
 const PERSONALITY_IDS = [
-  { id: 'professional', emoji: '💼' },
-  { id: 'friendly', emoji: '😊' },
-  { id: 'commercial', emoji: '💰' },
-  { id: 'formal', emoji: '🏛️' },
-  { id: 'casual', emoji: '✌️' },
-  { id: 'luxury', emoji: '💎' },
-  { id: 'dz_friendly', emoji: '🤝' },
-  { id: 'tech', emoji: '💻' },
-  { id: 'urgent', emoji: '⚡' },
+  { id: 'professional', emoji: '💼', label: 'Professionnel',   desc: 'Formel, courtois et précis' },
+  { id: 'friendly',     emoji: '😊', label: 'Amical',          desc: 'Chaleureux, proche et accessible' },
+  { id: 'commercial',   emoji: '💰', label: 'Commercial',      desc: 'Persuasif et orienté vente' },
+  { id: 'formal',       emoji: '🏛️', label: 'Formel',          desc: 'Institutionnel et sérieux' },
+  { id: 'casual',       emoji: '✌️', label: 'Décontracté',     desc: 'Naturel, simple et sympa' },
+  { id: 'luxury',       emoji: '💎', label: 'Luxe',            desc: 'Élégant, raffiné, haut de gamme' },
+  { id: 'dz_friendly',  emoji: '🤝', label: 'Darija DZ',       desc: 'Parle en darija algérienne naturelle' },
+  { id: 'tech',         emoji: '💻', label: 'Tech',            desc: 'Précis, technique et efficace' },
+  { id: 'urgent',       emoji: '⚡', label: 'Urgence',         desc: 'Réactif, direct, sans délai' },
 ];
 
 const COMMERCE_TYPES = [
-  { id: 'products', emoji: '📦' },
-  { id: 'services', emoji: '🛠️' },
-  { id: 'other', emoji: '🔄' },
+  { id: 'products', emoji: '📦', label: 'Produits',  desc: 'Vente de produits physiques ou numériques' },
+  { id: 'services', emoji: '🛠️', label: 'Services',  desc: 'Prestations, consultations, formations' },
+  { id: 'other',    emoji: '🔄', label: 'Autre',     desc: 'Restaurant, agence, professionnel libéral...' },
 ];
 
 const PLATFORMS = [
@@ -131,11 +131,11 @@ export default function BotSettingsClient({ connections }: { connections: Connec
     if (!selectedConn) return;
     setError('');
     if (!botName.trim()) {
-      setError(t('errorBotNameRequired'));
+      setError('Le nom du bot est obligatoire');
       return;
     }
     if (!businessName.trim()) {
-      setError(t('errorBusinessNameRequired'));
+      setError("Le nom de l'entreprise est obligatoire");
       return;
     }
     startTransition(async () => {
@@ -382,7 +382,7 @@ export default function BotSettingsClient({ connections }: { connections: Connec
 
           {/* Commerce type */}
           <div>
-            <p className="font-mono text-xs text-white/50 mb-3">{t('commerceTypeLabel')}</p>
+            <p className="font-mono text-xs text-white/50 mb-3">Type de commerce</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {COMMERCE_TYPES.map((ct) => (
                 <button
@@ -405,11 +405,9 @@ export default function BotSettingsClient({ connections }: { connections: Connec
                       className="font-mono text-sm font-semibold"
                       style={commerceType === ct.id ? { color: ORANGE } : { color: 'rgba(255,255,255,0.8)' }}
                     >
-                      {t(`commerceType${ct.id.charAt(0).toUpperCase()}${ct.id.slice(1)}` as any)}
+                      {ct.label}
                     </p>
-                    <p className="font-mono text-xs text-white/30 mt-0.5">
-                      {t(`commerceType${ct.id.charAt(0).toUpperCase()}${ct.id.slice(1)}Desc` as any)}
-                    </p>
+                    <p className="font-mono text-xs text-white/30 mt-0.5">{ct.desc}</p>
                   </div>
                   {commerceType === ct.id && (
                     <Check className="w-4 h-4 ml-auto flex-shrink-0 mt-0.5" style={{ color: ORANGE }} />
@@ -493,11 +491,9 @@ export default function BotSettingsClient({ connections }: { connections: Connec
                       className="font-mono text-sm font-semibold"
                       style={personality === p.id ? { color: ORANGE } : { color: 'rgba(255,255,255,0.8)' }}
                     >
-                      {t(`personality${p.id.charAt(0).toUpperCase()}${p.id.slice(1)}` as any)}
+                      {p.label}
                     </p>
-                    <p className="font-mono text-xs text-white/30 mt-0.5">
-                      {t(`personality${p.id.charAt(0).toUpperCase()}${p.id.slice(1)}Desc` as any)}
-                    </p>
+                    <p className="font-mono text-xs text-white/30 mt-0.5">{p.desc}</p>
                   </div>
                   {personality === p.id && (
                     <Check className="w-4 h-4 ml-auto flex-shrink-0 mt-0.5" style={{ color: ORANGE }} />

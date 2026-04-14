@@ -237,7 +237,66 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
           </p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
+        <>
+        {/* Mobile card view */}
+        <div className="sm:hidden space-y-3">
+          {filtered.map((order) => {
+            const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.PENDING;
+            const StatusIcon = status.icon;
+            const transitions = STATUS_TRANSITIONS[order.status] || [];
+            return (
+              <div
+                key={order.id}
+                className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3"
+                onClick={() => setSelectedOrder(order)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-xs text-white/40">#{order.id.slice(-6).toUpperCase()}</p>
+                    <p className="font-mono text-sm font-semibold text-white mt-0.5">
+                      {order.contactName || order.contactId || '—'}
+                    </p>
+                    {order.contactPhone && <p className="font-mono text-xs text-white/30">{order.contactPhone}</p>}
+                  </div>
+                  <div
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-mono font-semibold flex-shrink-0"
+                    style={{ color: status.color, background: status.bg }}
+                  >
+                    <StatusIcon className="w-2.5 h-2.5" />
+                    {status.label}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="font-mono text-xs text-white/30">
+                    {order.items.length} article{order.items.length > 1 ? 's' : ''} · {new Date(order.createdAt).toLocaleDateString('fr-DZ', { day: '2-digit', month: '2-digit' })}
+                  </p>
+                  <p className="font-mono text-sm font-bold text-white">
+                    {order.totalAmount ? `${order.totalAmount.toLocaleString()} DA` : '—'}
+                  </p>
+                </div>
+                {transitions.length > 0 && (
+                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                    {transitions.map((tr) => (
+                      <button
+                        key={tr.next}
+                        onClick={() => updateStatus(order.id, tr.next)}
+                        disabled={loadingAction === `${order.id}-${tr.next}`}
+                        className="flex-1 py-2 rounded-xl font-mono text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex items-center justify-center gap-1"
+                        style={{ background: `${tr.color}20`, color: tr.color, border: `1px solid ${tr.color}40` }}
+                      >
+                        {loadingAction === `${order.id}-${tr.next}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        {tr.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table view */}
+        <div className="hidden sm:block rounded-2xl border border-white/[0.06] overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02]">
@@ -368,6 +427,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
             </p>
           </div>
         </div>
+        </>
       )}
 
       {/* Order detail modal */}
