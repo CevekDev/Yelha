@@ -5,12 +5,9 @@ export const GLOBAL_SYSTEM_PROMPT = `Tu es {botName}, le vendeur virtuel de {bus
 {botPersonality}
 
 ══════════════════════════════════════
-RÈGLES DE LANGUE (ABSOLUES)
+RÈGLES DE LANGUE
 ══════════════════════════════════════
-- Détecte la langue/dialecte du client et réponds TOUJOURS dans cette même langue.
-- Langues supportées : arabe classique (فصحى), darija algérienne, darija marocaine, tous dialectes arabes, français, anglais, et toute autre langue.
-- Ne mélange JAMAIS les langues dans un même message.
-- Adapte le registre (formel/informel) automatiquement.
+{languageRules}
 - Ne révèle jamais que tu es une IA sauf si demandé explicitement.
 
 ══════════════════════════════════════
@@ -222,22 +219,32 @@ export function buildSystemPrompt(params: {
     }
   }
 
-  // ── Règles forcées (extraites de botPersonality) ──────────────────────────
+  // ── Langue ────────────────────────────────────────────────────────────────
   const responseLanguage: string = botPersonality?.responseLanguage || 'auto';
   const allowEmojis: boolean = botPersonality?.allowEmojis !== false;
 
-  const forcedRules: string[] = [];
-  if (responseLanguage && responseLanguage !== 'auto') {
-    const langLabels: Record<string, string> = {
-      ar: 'arabe classique (فصحى) UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
-      fr: 'français UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
-      en: 'anglais UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
-      dz: 'darija algérienne UNIQUEMENT — ne change jamais de langue même si le client écrit dans une autre langue',
-    };
-    forcedRules.push(`- LANGUE IMPOSÉE : Réponds TOUJOURS en ${langLabels[responseLanguage] || responseLanguage}. Cette règle annule la détection automatique de langue.`);
+  const langLabels: Record<string, string> = {
+    ar: 'arabe classique (فصحى)',
+    fr: 'français',
+    en: 'anglais',
+    dz: 'darija algérienne',
+  };
+
+  const languageRules = responseLanguage !== 'auto'
+    ? `LANGUE IMPOSÉE PAR LE PROPRIÉTAIRE : tu réponds TOUJOURS en ${langLabels[responseLanguage] || responseLanguage}, sans exception, quelle que soit la langue du client.`
+    : `Détecte la langue du client et réponds TOUJOURS dans cette même langue. Langues supportées : arabe classique, darija, français, anglais et toute autre langue.`;
+
+  // ── Construire les ordres du propriétaire ─────────────────────────────────
+  const ownerOrders: string[] = [];
+
+  if (responseLanguage !== 'auto') {
+    ownerOrders.push(`Langue : réponds TOUJOURS en ${langLabels[responseLanguage] || responseLanguage}, sans exception, même si le client écrit dans une autre langue.`);
   }
   if (!allowEmojis) {
-    forcedRules.push("- EMOJIS INTERDITS : N'utilise JAMAIS d'emojis (📦 ✅ ⚠️ 🎉 etc.) ni d'icônes spéciaux dans aucune de tes réponses, y compris les récapitulatifs de commande. Utilise du texte brut uniquement.");
+    ownerOrders.push(`Emojis : N'utilise JAMAIS d'emojis ni d'icônes spéciaux dans aucun de tes messages, y compris dans les récapitulatifs de commande.`);
+  }
+  if (customInstructions && customInstructions.trim() && customInstructions.trim() !== 'Aucune') {
+    ownerOrders.push(`Instructions spécifiques :\n${customInstructions.trim()}`);
   }
 
   const detailSection = detailResponses
@@ -257,21 +264,27 @@ export function buildSystemPrompt(params: {
     .replace('{customInstructions}', customInstructions || 'Aucune')
     .replace('{isFirstMessage}', isFirstMessage ? 'oui' : 'non')
     .replace('{commerceType}', resolvedCommerceType)
-    .replace('{commerceTypeInstructions}', resolvedCommerceInstructions);
+    .replace('{commerceTypeInstructions}', resolvedCommerceInstructions)
+    .replace('{languageRules}', languageRules);
 
   prompt += detailSection;
   prompt += contextSection;
 
-  // Construire la section de priorité maximale
-  const priorityBlocks: string[] = [...forcedRules];
-  if (customInstructions && customInstructions.trim() && customInstructions.trim() !== 'Aucune') {
-    priorityBlocks.push(`- INSTRUCTIONS PROPRIÉTAIRE (respecte-les À LA LETTRE, aucune exception) :\n${customInstructions.trim()}`);
-  }
-
-  if (priorityBlocks.length > 0) {
-    const sep = '═'.repeat(50);
-    const forcedSection = `⚠️⚠️⚠️ RÈGLES ABSOLUES — PRIORITÉ MAXIMALE — S'APPLIQUENT SUR TOUT ⚠️⚠️⚠️\nCes règles ont PRIORITÉ ABSOLUE sur toutes les autres instructions. Obéis-y à la lettre :\n${priorityBlocks.join('\n')}\n${sep}\n\n`;
-    prompt = forcedSection + prompt;
+  // ── Bloc priorité absolue — en tête du prompt ─────────────────────────────
+  if (ownerOrders.length > 0) {
+    const ordersText = ownerOrders.map((o, i) => `${i + 1}. ${o}`).join('\n');
+    const header = [
+      '╔══════════════════════════════════════════════════╗',
+      '║   ORDRES DU PROPRIÉTAIRE — PRIORITÉ ABSOLUE     ║',
+      '╚══════════════════════════════════════════════════╝',
+      'Tu es un employé. Le propriétaire est ton patron. Ces ordres s\'appliquent à CHAQUE réponse, sans exception.',
+      'Ils écrasent toutes les autres règles ci-dessous. Si tu as répondu différemment dans les messages précédents, corrige immédiatement.',
+      '',
+      ordersText,
+      '══════════════════════════════════════════════════',
+      '',
+    ].join('\n');
+    prompt = header + prompt;
   }
 
   return prompt;

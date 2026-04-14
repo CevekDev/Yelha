@@ -293,11 +293,6 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
       ).join('\n')
     : 'Aucun produit configuré.';
 
-  const deliveryFee = (connection.botPersonality as any)?.deliveryFee;
-  const deliveryLine = deliveryFee != null && deliveryFee > 0
-    ? `\nFRAIS DE LIVRAISON : ${deliveryFee} DA — Mentionne ce montant dans chaque récapitulatif de commande.`
-    : '';
-
   const prompt = buildSystemPrompt({
     botName: connection.botName || 'Assistant',
     businessName: connection.businessName || connection.name || 'la boutique',
@@ -314,7 +309,7 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
   return prompt + `\n\n══════════════════════════════════════
 CATALOGUE PRODUITS DE LA BOUTIQUE
 ══════════════════════════════════════
-${productsStr}${deliveryLine}
+${productsStr}
 
 Important : utilise UNIQUEMENT les produits listés ci-dessus. Ne mentionne jamais un produit absent de cette liste.`;
 }
