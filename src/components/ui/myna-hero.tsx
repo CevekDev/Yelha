@@ -153,7 +153,7 @@ export function MynaHero({ locale }: MynaHeroProps) {
       <section className="relative min-h-screen bg-[#0A0A0A] overflow-hidden flex flex-col items-center justify-center px-6 pt-24 pb-16">
         {/* Background grid */}
         <div
-          className="absolute inset-0 opacity-[0.03]"
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
           style={{
             backgroundImage:
               'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',

@@ -262,10 +262,15 @@ export function buildSystemPrompt(params: {
   prompt += detailSection;
   prompt += contextSection;
 
-  // Préfixer les règles absolues si nécessaire
-  if (forcedRules.length > 0) {
+  // Construire la section de priorité maximale
+  const priorityBlocks: string[] = [...forcedRules];
+  if (customInstructions && customInstructions.trim() && customInstructions.trim() !== 'Aucune') {
+    priorityBlocks.push(`- INSTRUCTIONS PROPRIÉTAIRE (respecte-les À LA LETTRE, aucune exception) :\n${customInstructions.trim()}`);
+  }
+
+  if (priorityBlocks.length > 0) {
     const sep = '═'.repeat(50);
-    const forcedSection = `⚠️⚠️⚠️ RÈGLES ABSOLUES — PRIORITÉ MAXIMALE — S'APPLIQUENT SUR TOUT ⚠️⚠️⚠️\nCes règles ont PRIORITÉ sur toutes les autres instructions ci-dessous :\n${forcedRules.join('\n')}\n${sep}\n\n`;
+    const forcedSection = `⚠️⚠️⚠️ RÈGLES ABSOLUES — PRIORITÉ MAXIMALE — S'APPLIQUENT SUR TOUT ⚠️⚠️⚠️\nCes règles ont PRIORITÉ ABSOLUE sur toutes les autres instructions. Obéis-y à la lettre :\n${priorityBlocks.join('\n')}\n${sep}\n\n`;
     prompt = forcedSection + prompt;
   }
 

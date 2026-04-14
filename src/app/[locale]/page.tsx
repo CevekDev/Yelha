@@ -135,13 +135,12 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
           <p className="text-white/50 text-base mb-10 font-mono">
             {t('cta.subtitle')}
           </p>
-          <Link href={`/${locale}/auth/signup`}>
-            <button
-              className="font-mono text-white text-sm px-8 py-4 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-95"
-              style={{ background: ORANGE, boxShadow: `0 0 32px ${ORANGE}40` }}
-            >
-              {t('cta.button')}
-            </button>
+          <Link
+            href={`/${locale}/auth/signup`}
+            className="inline-block font-mono text-white text-sm px-8 py-4 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-95"
+            style={{ background: ORANGE, boxShadow: `0 0 32px ${ORANGE}40` }}
+          >
+            {t('cta.button')}
           </Link>
         </div>
       </section>

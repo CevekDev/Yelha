@@ -43,6 +43,7 @@ export default function TokensPage() {
   const [unlimited, setUnlimited] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loadingPkg, setLoadingPkg] = useState<string | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<'edahabia' | 'cib'>('cib');
   const [promoCode, setPromoCode] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoApplied, setPromoApplied] = useState(false);
@@ -78,7 +79,7 @@ export default function TokensPage() {
       const res = await fetch('/api/tokens/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packageId, locale }),
+        body: JSON.stringify({ packageId, locale, paymentMethod: selectedMethod }),
       });
       const data = await res.json();
       if (data.url) {
@@ -162,16 +163,26 @@ export default function TokensPage() {
           </div>
 
           {/* Payment method tabs */}
-          <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06] w-fit">
+          <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06] w-fit">
             <button
-              onClick={() => setPaymentTab('chargily')}
+              onClick={() => { setPaymentTab('chargily'); setSelectedMethod('cib'); }}
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xs font-semibold transition-all"
-              style={paymentTab === 'chargily'
+              style={paymentTab === 'chargily' && selectedMethod === 'cib'
                 ? { background: `${ORANGE}25`, color: ORANGE }
                 : { color: 'rgba(255,255,255,0.4)' }}
             >
               <CreditCard className="w-3.5 h-3.5" />
-              CIB / Dahabiya
+              Carte CIB
+            </button>
+            <button
+              onClick={() => { setPaymentTab('chargily'); setSelectedMethod('edahabia'); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xs font-semibold transition-all"
+              style={paymentTab === 'chargily' && selectedMethod === 'edahabia'
+                ? { background: '#10B98125', color: '#10B981' }
+                : { color: 'rgba(255,255,255,0.4)' }}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Edahabia
             </button>
             <button
               onClick={() => setPaymentTab('ccp')}
@@ -192,7 +203,9 @@ export default function TokensPage() {
             <>
               <p className="font-mono text-xs text-white/30 mb-4 flex items-center gap-1.5">
                 <CreditCard className="w-3.5 h-3.5" />
-                Paiement sécurisé via Chargily ePay — CIB & Dahabiya acceptés
+                {selectedMethod === 'cib'
+                  ? 'Paiement sécurisé via Chargily ePay — Carte CIB (banque)'
+                  : 'Paiement sécurisé via Chargily ePay — Carte Edahabia (Algérie Poste)'}
               </p>
               {packages.length === 0 ? (
                 <div className="py-8 text-center">

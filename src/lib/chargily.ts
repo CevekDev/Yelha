@@ -25,15 +25,16 @@ export async function createChargilyCheckout(params: {
   description?: string;
   metadata: Record<string, string>;
   locale?: 'ar' | 'fr' | 'en';
+  paymentMethod?: 'edahabia' | 'cib';
 }): Promise<ChargilyCheckoutResult> {
   const apiKey = process.env.CHARGILY_API_KEY;
   if (!apiKey) throw new Error('CHARGILY_API_KEY is not set');
 
   const apiUrl = getApiUrl();
 
-  const body = {
+  const body: Record<string, any> = {
     amount: params.amount,
-    currency: params.currency.toLowerCase(), // 'dzd'
+    currency: params.currency.toLowerCase(),
     success_url: params.successUrl,
     failure_url: params.failureUrl,
     description: params.description ?? 'YelhaDms — Achat de tokens',
@@ -45,6 +46,10 @@ export async function createChargilyCheckout(params: {
       email: params.customerEmail,
     },
   };
+
+  if (params.paymentMethod) {
+    body.payment_method = params.paymentMethod;
+  }
 
   console.log('[Chargily] Using API URL:', apiUrl);
   console.log('[Chargily] Creating checkout for amount:', params.amount, 'DZD');
