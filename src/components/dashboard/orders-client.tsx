@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   ShoppingCart, Search, Eye, X, Package, Clock,
   CheckCircle, Truck, AlertCircle, XCircle, User, Bot,
-  RotateCcw, Send, Loader2,
+  RotateCcw, Send, Loader2, Trash2,
 } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
@@ -78,6 +78,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
   const [isPending, startTransition] = useTransition();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [confirmRequestLoading, setConfirmRequestLoading] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const showToast = (msg: string, ok = true) => {
@@ -102,6 +103,22 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
       showToast(t('updateError'), false);
     } finally {
       setLoadingAction(null);
+    }
+  };
+
+  const deleteOrder = async (orderId: string) => {
+    if (!confirm('Supprimer cette commande définitivement ?')) return;
+    setDeletingId(orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      if (selectedOrder?.id === orderId) setSelectedOrder(null);
+      showToast('Commande supprimée');
+    } catch {
+      showToast('Erreur lors de la suppression', false);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -274,22 +291,27 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                     {order.totalAmount ? `${order.totalAmount.toLocaleString()} DA` : '—'}
                   </p>
                 </div>
-                {transitions.length > 0 && (
-                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                    {transitions.map((tr) => (
-                      <button
-                        key={tr.next}
-                        onClick={() => updateStatus(order.id, tr.next)}
-                        disabled={loadingAction === `${order.id}-${tr.next}`}
-                        className="flex-1 py-2 rounded-xl font-mono text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex items-center justify-center gap-1"
-                        style={{ background: `${tr.color}20`, color: tr.color, border: `1px solid ${tr.color}40` }}
-                      >
-                        {loadingAction === `${order.id}-${tr.next}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                        {tr.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                  {transitions.map((tr) => (
+                    <button
+                      key={tr.next}
+                      onClick={() => updateStatus(order.id, tr.next)}
+                      disabled={loadingAction === `${order.id}-${tr.next}`}
+                      className="flex-1 py-2 rounded-xl font-mono text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex items-center justify-center gap-1"
+                      style={{ background: `${tr.color}20`, color: tr.color, border: `1px solid ${tr.color}40` }}
+                    >
+                      {loadingAction === `${order.id}-${tr.next}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                      {tr.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => deleteOrder(order.id)}
+                    disabled={deletingId === order.id}
+                    className="p-2 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                  >
+                    {deletingId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -414,6 +436,15 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
+
+                        {/* Delete button */}
+                        <button
+                          onClick={() => deleteOrder(order.id)}
+                          disabled={deletingId === order.id}
+                          className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
+                        >
+                          {deletingId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -447,12 +478,22 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                   {new Date(selectedOrder.createdAt).toLocaleString('fr-DZ')}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06]"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => deleteOrder(selectedOrder.id)}
+                  disabled={deletingId === selectedOrder.id}
+                  className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                  title="Supprimer la commande"
+                >
+                  {deletingId === selectedOrder.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => setSelectedOrder(null)}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Client info */}

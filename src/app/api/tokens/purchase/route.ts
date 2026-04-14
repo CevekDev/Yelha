@@ -40,6 +40,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email utilisateur manquant' }, { status: 404 });
     }
 
+    if (!process.env.CHARGILY_API_KEY) {
+      return NextResponse.json(
+        { error: 'Paiement non configuré. Contactez le support.' },
+        { status: 503 }
+      );
+    }
+
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dms.yelha.net';
 
     const checkout = await createChargilyCheckout({

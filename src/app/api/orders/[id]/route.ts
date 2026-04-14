@@ -5,6 +5,22 @@ import { prisma } from '@/lib/prisma';
 
 const VALID_STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'];
 
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const order = await prisma.order.findFirst({
+    where: { id: params.id, connection: { userId: session.user.id } },
+  });
+  if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  await prisma.order.delete({ where: { id: params.id } });
+  return NextResponse.json({ success: true });
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }

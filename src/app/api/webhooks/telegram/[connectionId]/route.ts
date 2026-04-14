@@ -186,26 +186,44 @@ export async function POST(
       }
     }
 
-    // ── Commande confirmée → extraire JSON et sauvegarder ────────────────
-    const tagStart = rawResponse.indexOf('[COMMANDE_CONFIRMEE:');
-    if (tagStart !== -1) {
-      const jsonStart = tagStart + '[COMMANDE_CONFIRMEE:'.length;
-      // Find the matching closing }] by scanning from the end
-      const tagEnd = rawResponse.lastIndexOf('}]');
-      if (tagEnd > jsonStart) {
-        const jsonStr = rawResponse.slice(jsonStart, tagEnd + 1);
-        responseText = (rawResponse.slice(0, tagStart) + rawResponse.slice(tagEnd + 2)).trim();
-        try {
-          const orderData = JSON.parse(jsonStr);
-          await saveOrderFromBot(connection, contactId, contactName, orderData);
-        } catch (e) {
-          console.error('[Telegram] Order parse error', e, 'JSON:', jsonStr);
+    // ── Commande annulée ─────────────────────────────────────────────────
+    if (rawResponse.includes('[COMMANDE_ANNULEE]')) {
+      responseText = rawResponse.replace('[COMMANDE_ANNULEE]', '').trim();
+      // Annuler la commande PENDING la plus récente de ce contact
+      try {
+        const latestOrder = await prisma.order.findFirst({
+          where: { connectionId: connection.id, contactId, status: 'PENDING' },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (latestOrder) {
+          await prisma.order.update({ where: { id: latestOrder.id }, data: { status: 'CANCELLED' } });
+          console.log(`[Telegram] Order cancelled by client: ${latestOrder.id}`);
         }
-      } else {
+      } catch (e) {
+        console.error('[Telegram] Order cancellation error', e);
+      }
+    }
+    // ── Commande confirmée → extraire JSON et sauvegarder ────────────────
+    else {
+      const tagStart = rawResponse.indexOf('[COMMANDE_CONFIRMEE:');
+      if (tagStart !== -1) {
+        const jsonStart = tagStart + '[COMMANDE_CONFIRMEE:'.length;
+        const tagEnd = rawResponse.lastIndexOf('}]');
+        if (tagEnd > jsonStart) {
+          const jsonStr = rawResponse.slice(jsonStart, tagEnd + 1);
+          responseText = (rawResponse.slice(0, tagStart) + rawResponse.slice(tagEnd + 2)).trim();
+          try {
+            const orderData = JSON.parse(jsonStr);
+            await saveOrderFromBot(connection, contactId, contactName, orderData);
+          } catch (e) {
+            console.error('[Telegram] Order parse error', e, 'JSON:', jsonStr);
+          }
+        } else {
+          responseText = rawResponse;
+        }
+      } else if (!rawResponse.startsWith('[HORS_SUJET]')) {
         responseText = rawResponse;
       }
-    } else if (!rawResponse.startsWith('[HORS_SUJET]')) {
-      responseText = rawResponse;
     }
   }
 
