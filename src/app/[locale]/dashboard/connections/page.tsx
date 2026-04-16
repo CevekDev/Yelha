@@ -6,8 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Plus, Send, Trash2, Loader2, Clock,
   MessageCircle, Instagram, Facebook, HelpCircle,
-  CheckCircle, ExternalLink, ChevronDown, ChevronUp,
-  Bot, Hash, Copy, Check, FlaskConical,
+  CheckCircle, ChevronDown, ChevronUp,
+  Bot, Hash,
 } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
@@ -43,10 +43,9 @@ export default function ConnectionsPage() {
   // Telegram form
   const [tgForm, setTgForm] = useState({ name: '', botName: 'Assistant', telegramBotToken: '' });
 
-  // Instagram form + result
-  const [igForm, setIgForm] = useState({ name: '', botName: 'Assistant', businessName: '', instagramUserId: '', instagramAccessToken: '' });
-  const [igResult, setIgResult] = useState<{ webhookUrl: string; verifyToken: string } | null>(null);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+  // Instagram form
+  const [igForm, setIgForm] = useState({ name: '', botName: 'Assistant', businessName: '', instagramUsername: '', instagramPassword: '' });
+  const [showIgPassword, setShowIgPassword] = useState(false);
 
   useEffect(() => { fetchConnections(); }, []);
 
@@ -60,12 +59,6 @@ export default function ConnectionsPage() {
     }
   };
 
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedField(field);
-      setTimeout(() => setCopiedField(null), 2000);
-    });
-  };
 
   const handleAddTelegram = async () => {
     if (!tgForm.telegramBotToken || !tgForm.name) return;
@@ -107,7 +100,7 @@ export default function ConnectionsPage() {
   };
 
   const handleAddInstagram = async () => {
-    if (!igForm.instagramAccessToken || !igForm.name || !igForm.instagramUserId) return;
+    if (!igForm.instagramUsername || !igForm.instagramPassword || !igForm.name) return;
     setAdding(true);
     try {
       const res = await fetch('/api/connections', {
@@ -117,9 +110,9 @@ export default function ConnectionsPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        setIgResult({ webhookUrl: json.webhookUrl, verifyToken: json.verifyToken });
-        toast({ title: '✅ Bot Instagram créé ! Configurez le webhook dans Meta.' });
-        setIgForm({ name: '', botName: 'Assistant', businessName: '', instagramUserId: '', instagramAccessToken: '' });
+        toast({ title: '✅ Bot Instagram connecté !', description: `@${igForm.instagramUsername} est maintenant actif.` });
+        setIgForm({ name: '', botName: 'Assistant', businessName: '', instagramUsername: '', instagramPassword: '' });
+        setShowAdd(false);
         fetchConnections();
       } else {
         toast({ title: 'Erreur', description: json.error, variant: 'destructive' });
@@ -148,7 +141,7 @@ export default function ConnectionsPage() {
           <p className="text-white/40 text-sm mt-1 font-mono">Gérez vos bots IA — Telegram & Instagram</p>
         </div>
         <button
-          onClick={() => { setShowAdd(v => !v); setShowHelp(false); setIgResult(null); }}
+          onClick={() => { setShowAdd(v => !v); setShowHelp(false); }}
           className="flex items-center gap-2 font-mono text-sm text-white px-4 py-2.5 rounded-xl transition-all hover:opacity-90"
           style={{ background: ORANGE }}
         >
@@ -171,7 +164,7 @@ export default function ConnectionsPage() {
               return (
                 <button
                   key={p.key}
-                  onClick={() => { setPlatformTab(p.key); setIgResult(null); }}
+                  onClick={() => { setPlatformTab(p.key); }}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xs font-semibold transition-all"
                   style={active ? { background: `${p.color}20`, color: p.color, border: `1px solid ${p.color}30` } : { color: 'rgba(255,255,255,0.3)' }}
                 >
@@ -219,22 +212,18 @@ export default function ConnectionsPage() {
           )}
 
           {/* ── Instagram form ── */}
-          {platformTab === 'INSTAGRAM' && !igResult && (
+          {platformTab === 'INSTAGRAM' && (
             <>
               <div className="flex items-center gap-2.5 mb-4">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${IG_COLOR}20` }}>
                   <Instagram className="w-4 h-4" style={{ color: IG_COLOR }} />
                 </div>
                 <h2 className="font-mono font-semibold text-white text-sm">Nouveau bot Instagram DM</h2>
-                <span className="ml-auto flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full border" style={{ color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)', background: 'rgba(251,191,36,0.06)' }}>
-                  <FlaskConical className="w-3 h-3" />
-                  Mode Test
-                </span>
               </div>
 
-              {/* Test mode notice */}
-              <div className="rounded-xl p-3 mb-4 text-xs font-mono text-yellow-400/70" style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)' }}>
-                {t('instagramHelp.testMode')}
+              {/* Info */}
+              <div className="rounded-xl p-3 mb-4 text-xs font-mono text-white/50 leading-relaxed" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                🔐 Vos identifiants sont chiffrés (AES-256) et ne sont jamais affichés ni partagés. Utilisez un compte Instagram dédié à votre boutique.
               </div>
 
               <div className="space-y-3">
@@ -253,85 +242,50 @@ export default function ConnectionsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">{t('instagramUserId')}</label>
-                  <input className={INPUT_CLASS} value={igForm.instagramUserId} onChange={e => setIgForm(f => ({ ...f, instagramUserId: e.target.value }))} placeholder={t('instagramUserIdPlaceholder')} />
+                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Nom d&apos;utilisateur Instagram</label>
+                  <input
+                    className={INPUT_CLASS}
+                    value={igForm.instagramUsername}
+                    onChange={e => setIgForm(f => ({ ...f, instagramUsername: e.target.value.replace('@', '') }))}
+                    placeholder="votre_compte"
+                    autoComplete="username"
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">{t('accessToken')}</label>
-                  <input className={INPUT_CLASS} type="password" value={igForm.instagramAccessToken} onChange={e => setIgForm(f => ({ ...f, instagramAccessToken: e.target.value }))} placeholder={t('accessTokenPlaceholder')} />
+                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Mot de passe Instagram</label>
+                  <div className="relative">
+                    <input
+                      className={INPUT_CLASS}
+                      type={showIgPassword ? 'text' : 'password'}
+                      value={igForm.instagramPassword}
+                      onChange={e => setIgForm(f => ({ ...f, instagramPassword: e.target.value }))}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowIgPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors text-[10px] font-mono"
+                    >
+                      {showIgPassword ? 'Masquer' : 'Afficher'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="flex gap-2 mt-5">
-                <button onClick={handleAddInstagram} disabled={adding || !igForm.instagramAccessToken || !igForm.name || !igForm.instagramUserId} className="flex items-center gap-2 font-mono text-sm text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 disabled:opacity-40" style={{ background: IG_COLOR }}>
+                <button
+                  onClick={handleAddInstagram}
+                  disabled={adding || !igForm.instagramUsername || !igForm.instagramPassword || !igForm.name}
+                  className="flex items-center gap-2 font-mono text-sm text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 disabled:opacity-40"
+                  style={{ background: IG_COLOR }}
+                >
                   {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Instagram className="w-4 h-4" />}
-                  Connecter Instagram
+                  {adding ? 'Connexion en cours...' : 'Connecter Instagram'}
                 </button>
                 <button onClick={() => setShowAdd(false)} className="font-mono text-sm text-white/40 hover:text-white/70 px-4 py-2.5 rounded-xl border border-white/[0.07] transition-all">Annuler</button>
               </div>
-
-              {/* Instagram help */}
-              <div className="mt-4 border-t border-white/[0.05] pt-4">
-                <button onClick={() => setShowHelp(v => !v)} className="flex items-center gap-2 text-xs font-mono text-white/30 hover:text-white/60 transition-colors">
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  {t('instagramHelp.title')}
-                  {showHelp ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-                {showHelp && (
-                  <div className="mt-3 space-y-2">
-                    {[t('instagramHelp.step1'), t('instagramHelp.step2'), t('instagramHelp.step3'), t('instagramHelp.step4'), t('instagramHelp.step5')].map((step, i) => (
-                      <div key={i} className="flex gap-2.5">
-                        <span className="w-5 h-5 rounded-full text-[10px] font-mono font-bold flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: `${IG_COLOR}20`, color: IG_COLOR }}>{i + 1}</span>
-                        <p className="text-xs font-mono text-white/50 leading-relaxed">{step}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </>
-          )}
-
-          {/* ── Instagram webhook info after creation ── */}
-          {platformTab === 'INSTAGRAM' && igResult && (
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <h2 className="font-mono font-semibold text-white text-sm">Bot Instagram créé avec succès !</h2>
-              </div>
-              <p className="text-xs font-mono text-white/40 mb-4">{t('webhookInfo')}</p>
-              <div className="space-y-3">
-                {[
-                  { label: t('webhookUrl'), value: igResult.webhookUrl, field: 'url' },
-                  { label: t('verifyToken'), value: igResult.verifyToken, field: 'token' },
-                ].map(item => (
-                  <div key={item.field}>
-                    <label className="text-xs text-white/40 font-mono mb-1.5 block">{item.label}</label>
-                    <div className="flex gap-2">
-                      <code className="flex-1 bg-white/[0.04] border border-white/[0.07] rounded-xl px-4 py-2.5 text-xs font-mono text-white/80 truncate">{item.value}</code>
-                      <button
-                        onClick={() => copyToClipboard(item.value, item.field)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.08] font-mono text-xs transition-all hover:border-white/20"
-                        style={copiedField === item.field ? { color: '#10b981', borderColor: '#10b98130' } : { color: 'rgba(255,255,255,0.4)' }}
-                      >
-                        {copiedField === item.field ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copiedField === item.field ? t('copied') : 'Copier'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 rounded-xl p-3 text-xs font-mono" style={{ background: `${IG_COLOR}08`, border: `1px solid ${IG_COLOR}20` }}>
-                <p className="text-white/50 leading-relaxed">
-                  Dans Meta → votre app → Instagram → Webhooks :<br />
-                  1. Collez l'URL webhook et le Verify Token<br />
-                  2. Abonnez-vous au champ <code className="text-white/70">messages</code><br />
-                  3. Cliquez &quot;Vérifier et enregistrer&quot;
-                </p>
-              </div>
-              <button onClick={() => { setIgResult(null); setShowAdd(false); }} className="mt-4 font-mono text-sm text-white/50 hover:text-white/80 transition-colors">
-                Fermer
-              </button>
-            </div>
           )}
         </div>
       )}
@@ -405,8 +359,8 @@ export default function ConnectionsPage() {
         <div className="flex items-center gap-2 mb-4">
           <Instagram className="w-4 h-4" style={{ color: IG_COLOR }} />
           <span className="font-mono text-xs text-white/40 uppercase tracking-wider">Instagram DM</span>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>
-            <FlaskConical className="w-2.5 h-2.5" /> Mode Test
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399' }}>
+            Disponible
           </span>
         </div>
 
@@ -438,8 +392,9 @@ export default function ConnectionsPage() {
                     {conn.isActive ? t('active') : t('inactive')}
                   </span>
                 </div>
-                <div className="px-3 py-2 rounded-lg mb-3 text-xs font-mono text-white/40" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                  Webhook: <code className="text-white/60">/api/webhooks/instagram</code>
+                <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                  <span className="text-xs font-mono text-white/50">Polling actif — vérifie les DMs chaque minute</span>
                 </div>
                 <div className="flex justify-end">
                   <button onClick={() => handleDelete(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 font-mono text-xs transition-all">

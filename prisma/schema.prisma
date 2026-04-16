@@ -183,11 +183,15 @@ model Connection {
   isSuspended          Boolean   @default(false)
   telegramWebhookSecret String?  @db.Text  // AES-256-GCM encrypted
 
-  // Instagram (Meta Graph API)
-  instagramAccessToken        String?  @db.Text  // AES-256-GCM encrypted
-  instagramUserId             String?             // Instagram Business User ID
+  // Instagram (Private API — username/password login)
   instagramUsername           String?
-  instagramWebhookVerifyToken String?  @db.Text  // random UUID, used to verify Meta webhook
+  instagramPassword           String?  @db.Text  // AES-256-GCM encrypted
+  instagramSessionData        String?  @db.Text  // AES-256-GCM encrypted serialized session
+  instagramLastMessageTs      BigInt?            // timestamp of last processed message (µs)
+  // Legacy Meta Graph API fields (kept for DB compat)
+  instagramAccessToken        String?  @db.Text
+  instagramUserId             String?
+  instagramWebhookVerifyToken String?  @db.Text
 
   // Business hours
   businessHours        Json?

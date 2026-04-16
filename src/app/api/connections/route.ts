@@ -5,8 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { encrypt } from '@/lib/encryption';
 import { apiRatelimit, getRateLimitKey } from '@/lib/ratelimit';
 import { z } from 'zod';
-import { getInstagramBusinessAccount } from '@/lib/instagram';
-import crypto from 'crypto';
+import { loginInstagram } from '@/lib/instagram-private';
 
 const connectionSchema = z.discriminatedUnion('platform', [
   z.object({
@@ -28,9 +27,8 @@ const connectionSchema = z.discriminatedUnion('platform', [
     name: z.string().min(1).max(100),
     botName: z.string().min(1).max(50).default('Assistant'),
     businessName: z.string().max(100).optional(),
-    instagramAccessToken: z.string().min(20),
-    instagramUserId: z.string().min(5),
-    instagramUsername: z.string().optional(),
+    instagramUsername: z.string().min(1).max(60),
+    instagramPassword: z.string().min(6),
   }),
 ]);
 
@@ -84,16 +82,25 @@ export async function POST(req: NextRequest) {
   }
 
   if (data.platform === 'INSTAGRAM') {
-    // Validate token against Meta Graph API
-    let igAccount: { id: string; username: string };
+    // Login with username/password to get a session
+    let encryptedSession: string;
     try {
-      igAccount = await getInstagramBusinessAccount(data.instagramAccessToken);
-    } catch {
-      return NextResponse.json({ error: 'Token Instagram invalide ou expiré' }, { status: 400 });
+      encryptedSession = await loginInstagram(data.instagramUsername, data.instagramPassword);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('challenge') || msg.includes('checkpoint')) {
+        return NextResponse.json(
+          { error: 'Instagram demande une vérification (2FA/email). Validez la connexion depuis l\'app Instagram puis réessayez.' },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Identifiants Instagram invalides. Vérifiez votre nom d\'utilisateur et mot de passe.' },
+        { status: 400 }
+      );
     }
 
-    const encryptedToken = encrypt(data.instagramAccessToken);
-    const verifyToken = crypto.randomUUID();
+    const encryptedPassword = encrypt(data.instagramPassword);
 
     const connection = await prisma.connection.create({
       data: {
@@ -102,10 +109,9 @@ export async function POST(req: NextRequest) {
         name: data.name,
         botName: data.botName,
         businessName: data.businessName,
-        instagramAccessToken: encryptedToken,
-        instagramUserId: data.instagramUserId || igAccount.id,
-        instagramUsername: data.instagramUsername || igAccount.username,
-        instagramWebhookVerifyToken: verifyToken,
+        instagramUsername: data.instagramUsername,
+        instagramPassword: encryptedPassword,
+        instagramSessionData: encryptedSession,
       },
     });
 
@@ -113,8 +119,6 @@ export async function POST(req: NextRequest) {
       id: connection.id,
       platform: connection.platform,
       name: connection.name,
-      webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/instagram`,
-      verifyToken,
     });
   }
 
