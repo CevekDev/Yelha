@@ -1,13 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/hooks/use-toast';
 import {
   Plus, Send, Trash2, Loader2, Clock,
   MessageCircle, Instagram, Facebook, HelpCircle,
-  CheckCircle, ChevronDown, ChevronUp,
-  Bot, Hash,
+  CheckCircle, ChevronDown, ChevronUp, Copy, Check,
+  Bot, Hash, ExternalLink,
 } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
@@ -32,6 +32,8 @@ export default function ConnectionsPage() {
   const locale = params.locale as string;
   const { toast } = useToast();
 
+  const searchParams = useSearchParams();
+
   const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -39,15 +41,48 @@ export default function ConnectionsPage() {
   const [showHelp, setShowHelp] = useState(false);
   const [adding, setAdding] = useState(false);
   const [waitingId, setWaitingId] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Telegram form
   const [tgForm, setTgForm] = useState({ name: '', botName: 'Assistant', telegramBotToken: '' });
 
-  // Instagram form
-  const [igForm, setIgForm] = useState({ name: '', botName: 'Assistant', businessName: '', instagramUsername: '', instagramPassword: '' });
-  const [showIgPassword, setShowIgPassword] = useState(false);
+  // Instagram form (just name/botName — token via OAuth)
+  const [igForm, setIgForm] = useState({ name: '', botName: 'Assistant', businessName: '' });
+
+  // Instagram OAuth result (from URL params after callback)
+  const [igOAuthResult, setIgOAuthResult] = useState<{
+    verifyToken: string;
+    username: string;
+  } | null>(null);
 
   useEffect(() => { fetchConnections(); }, []);
+
+  // Handle OAuth callback result from URL params
+  useEffect(() => {
+    const igSuccess = searchParams.get('ig_success');
+    const igError = searchParams.get('ig_error');
+    const igVerifyToken = searchParams.get('ig_verify_token');
+    const igUsername = searchParams.get('ig_username');
+
+    if (igSuccess === '1' && igVerifyToken) {
+      setIgOAuthResult({ verifyToken: igVerifyToken, username: igUsername ?? '' });
+      setPlatformTab('INSTAGRAM');
+      fetchConnections();
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (igError) {
+      const errorMessages: Record<string, string> = {
+        denied: 'Connexion Instagram annulée.',
+        token_exchange: 'Échec de récupération du token Instagram.',
+        limit_reached: 'Limite de bots Instagram atteinte pour votre plan.',
+        server_error: 'Erreur serveur lors de la connexion Instagram.',
+        missing_params: 'Paramètres manquants dans le callback Instagram.',
+      };
+      toast({ title: 'Erreur Instagram', description: errorMessages[igError] ?? igError, variant: 'destructive' });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchConnections = async () => {
     try {
@@ -99,27 +134,22 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleAddInstagram = async () => {
-    if (!igForm.instagramUsername || !igForm.instagramPassword || !igForm.name) return;
-    setAdding(true);
-    try {
-      const res = await fetch('/api/connections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: 'INSTAGRAM', ...igForm }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        toast({ title: '✅ Bot Instagram connecté !', description: `@${igForm.instagramUsername} est maintenant actif.` });
-        setIgForm({ name: '', botName: 'Assistant', businessName: '', instagramUsername: '', instagramPassword: '' });
-        setShowAdd(false);
-        fetchConnections();
-      } else {
-        toast({ title: 'Erreur', description: json.error, variant: 'destructive' });
-      }
-    } finally {
-      setAdding(false);
-    }
+  const handleConnectInstagram = () => {
+    if (!igForm.name) return;
+    // Redirect to OAuth flow — Instagram login page opens
+    const params = new URLSearchParams({
+      name: igForm.name,
+      botName: igForm.botName,
+      businessName: igForm.businessName,
+    });
+    window.location.href = `/api/instagram/auth?${params.toString()}`;
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -214,19 +244,14 @@ export default function ConnectionsPage() {
           {/* ── Instagram form ── */}
           {platformTab === 'INSTAGRAM' && (
             <>
-              <div className="flex items-center gap-2.5 mb-4">
+              <div className="flex items-center gap-2.5 mb-5">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${IG_COLOR}20` }}>
                   <Instagram className="w-4 h-4" style={{ color: IG_COLOR }} />
                 </div>
                 <h2 className="font-mono font-semibold text-white text-sm">Nouveau bot Instagram DM</h2>
               </div>
 
-              {/* Info */}
-              <div className="rounded-xl p-3 mb-4 text-xs font-mono text-white/50 leading-relaxed" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                🔐 Vos identifiants sont chiffrés (AES-256) et ne sont jamais affichés ni partagés. Utilisez un compte Instagram dédié à votre boutique.
-              </div>
-
-              <div className="space-y-3">
+              <div className="space-y-3 mb-5">
                 <div>
                   <label className="text-xs text-white/40 font-mono mb-1.5 block">Nom de la connexion</label>
                   <input className={INPUT_CLASS} value={igForm.name} onChange={e => setIgForm(f => ({ ...f, name: e.target.value }))} placeholder="Mon Instagram Shop" />
@@ -241,49 +266,28 @@ export default function ConnectionsPage() {
                     <input className={INPUT_CLASS} value={igForm.businessName} onChange={e => setIgForm(f => ({ ...f, businessName: e.target.value }))} placeholder="Ma Boutique" />
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Nom d&apos;utilisateur Instagram</label>
-                  <input
-                    className={INPUT_CLASS}
-                    value={igForm.instagramUsername}
-                    onChange={e => setIgForm(f => ({ ...f, instagramUsername: e.target.value.replace('@', '') }))}
-                    placeholder="votre_compte"
-                    autoComplete="username"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Mot de passe Instagram</label>
-                  <div className="relative">
-                    <input
-                      className={INPUT_CLASS}
-                      type={showIgPassword ? 'text' : 'password'}
-                      value={igForm.instagramPassword}
-                      onChange={e => setIgForm(f => ({ ...f, instagramPassword: e.target.value }))}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowIgPassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors text-[10px] font-mono"
-                    >
-                      {showIgPassword ? 'Masquer' : 'Afficher'}
-                    </button>
-                  </div>
-                </div>
               </div>
 
-              <div className="flex gap-2 mt-5">
-                <button
-                  onClick={handleAddInstagram}
-                  disabled={adding || !igForm.instagramUsername || !igForm.instagramPassword || !igForm.name}
-                  className="flex items-center gap-2 font-mono text-sm text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 disabled:opacity-40"
-                  style={{ background: IG_COLOR }}
-                >
-                  {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Instagram className="w-4 h-4" />}
-                  {adding ? 'Connexion en cours...' : 'Connecter Instagram'}
-                </button>
-                <button onClick={() => setShowAdd(false)} className="font-mono text-sm text-white/40 hover:text-white/70 px-4 py-2.5 rounded-xl border border-white/[0.07] transition-all">Annuler</button>
+              {/* OAuth connect button */}
+              <button
+                onClick={handleConnectInstagram}
+                disabled={!igForm.name}
+                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-mono font-semibold text-sm text-white transition-all hover:opacity-90 disabled:opacity-40"
+                style={{
+                  background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+                  boxShadow: '0 4px 24px rgba(220,39,67,0.3)',
+                }}
+              >
+                <Instagram className="w-5 h-5" />
+                Se connecter avec Instagram
+                <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+              </button>
+              <p className="text-center text-[11px] font-mono text-white/25 mt-2">
+                Vous serez redirigé vers la page officielle Instagram
+              </p>
+
+              <div className="flex justify-center mt-3">
+                <button onClick={() => setShowAdd(false)} className="font-mono text-sm text-white/40 hover:text-white/70 transition-colors">Annuler</button>
               </div>
             </>
           )}
@@ -298,6 +302,56 @@ export default function ConnectionsPage() {
             <p className="text-sm font-mono font-semibold" style={{ color: SKY }}>En attente de votre premier message...</p>
             <p className="text-xs text-white/30 font-mono mt-0.5">Ouvrez Telegram, trouvez votre bot et envoyez-lui un message pour finaliser la configuration.</p>
           </div>
+        </div>
+      )}
+
+      {/* ── Instagram OAuth result banner ── */}
+      {igOAuthResult && (
+        <div className="rounded-2xl p-5" style={{ background: `${IG_COLOR}08`, border: `1px solid ${IG_COLOR}30` }}>
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle className="w-5 h-5 text-green-400" />
+            <span className="font-mono font-semibold text-white text-sm">
+              @{igOAuthResult.username} connecté avec succès !
+            </span>
+          </div>
+          <p className="text-xs font-mono text-white/40 mb-3">
+            Dernière étape — configurez le webhook dans votre app Meta pour recevoir les DMs :
+          </p>
+          <div className="space-y-2 mb-3">
+            <div>
+              <p className="text-[10px] font-mono text-white/30 mb-1">Webhook URL</p>
+              <div className="flex gap-2">
+                <code className="flex-1 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2 text-xs font-mono text-white/70 truncate">
+                  {`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://dms.yelha.net'}/api/webhooks/instagram`}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(`${window.location.origin}/api/webhooks/instagram`, 'wh_url')}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-white/[0.08] font-mono text-xs transition-all hover:border-white/20"
+                  style={copiedField === 'wh_url' ? { color: '#10b981' } : { color: 'rgba(255,255,255,0.4)' }}
+                >
+                  {copiedField === 'wh_url' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-white/30 mb-1">Verify Token</p>
+              <div className="flex gap-2">
+                <code className="flex-1 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2 text-xs font-mono text-white/70 truncate">
+                  {igOAuthResult.verifyToken}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(igOAuthResult.verifyToken, 'wh_token')}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-white/[0.08] font-mono text-xs transition-all hover:border-white/20"
+                  style={copiedField === 'wh_token' ? { color: '#10b981' } : { color: 'rgba(255,255,255,0.4)' }}
+                >
+                  {copiedField === 'wh_token' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setIgOAuthResult(null)} className="text-xs font-mono text-white/30 hover:text-white/60 transition-colors">
+            Fermer
+          </button>
         </div>
       )}
 
@@ -394,7 +448,9 @@ export default function ConnectionsPage() {
                 </div>
                 <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
                   <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                  <span className="text-xs font-mono text-white/50">Polling actif — vérifie les DMs chaque minute</span>
+                  <span className="text-xs font-mono text-white/50">
+                    @{conn.instagramUsername || 'instagram'} — Webhook actif
+                  </span>
                 </div>
                 <div className="flex justify-end">
                   <button onClick={() => handleDelete(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 font-mono text-xs transition-all">
