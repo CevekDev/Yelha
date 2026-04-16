@@ -4,6 +4,7 @@ import { MynaHero } from '@/components/ui/myna-hero';
 import YelhaPricing from '@/components/ui/yelha-pricing';
 import { Bot, Globe, Shield, Coins, Send, Mic, ShoppingCart } from 'lucide-react';
 import { FaqSection } from '@/components/ui/faq-section';
+import { LandingAnimated } from '@/components/ui/landing-animated';
 
 const ORANGE = '#FF6B2C';
 
@@ -48,80 +49,20 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
       {/* ── Hero (dark, animated) ── */}
       <MynaHero locale={locale} />
 
-      {/* ── Features ─────────────────────────────────────────────────── */}
-      <section id="features" className="py-24 bg-white scroll-mt-20">
-        <div className="container max-w-6xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <span
-              className="font-mono text-xs font-semibold uppercase tracking-widest"
-              style={{ color: ORANGE }}
-            >
-              {t('features.badge')}
-            </span>
-            <h2 className="mt-3 text-4xl font-bold tracking-tight text-gray-900">
-              {t('features.title')}
-            </h2>
-            <p className="mt-4 text-gray-500 max-w-xl mx-auto">
-              {t('features.subtitle')}
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURES.map((f) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={f.title}
-                  className="group flex flex-col gap-4 p-6 rounded-2xl border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all duration-200 bg-white"
-                >
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center"
-                    style={{ background: `${ORANGE}15` }}
-                  >
-                    <Icon className="w-6 h-6" style={{ color: ORANGE }} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">{f.title}</h3>
-                    <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── How it works ─────────────────────────────────────────────── */}
-      <section id="how" className="py-24 bg-gray-50 scroll-mt-20">
-        <div className="container max-w-4xl mx-auto px-6 text-center">
-          <span
-            className="font-mono text-xs font-semibold uppercase tracking-widest"
-            style={{ color: ORANGE }}
-          >
-            {t('howItWorks.badge')}
-          </span>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-gray-900 mb-16">
-            {t('howItWorks.title')}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            {[
-              { step: '01', title: t('howItWorks.step1.title'), desc: t('howItWorks.step1.desc') },
-              { step: '02', title: t('howItWorks.step2.title'), desc: t('howItWorks.step2.desc') },
-              { step: '03', title: t('howItWorks.step3.title'), desc: t('howItWorks.step3.desc') },
-            ].map((item) => (
-              <div key={item.step} className="flex flex-col items-center">
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center font-mono text-xl font-bold text-white mb-5"
-                  style={{ background: ORANGE }}
-                >
-                  {item.step}
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ── Features + How it works (animated) ──────────────────────── */}
+      <LandingAnimated
+        featuresBadge={t('features.badge')}
+        featuresTitle={t('features.title')}
+        featuresSubtitle={t('features.subtitle')}
+        features={FEATURES}
+        howBadge={t('howItWorks.badge')}
+        howTitle={t('howItWorks.title')}
+        steps={[
+          { step: '01', title: t('howItWorks.step1.title'), desc: t('howItWorks.step1.desc') },
+          { step: '02', title: t('howItWorks.step2.title'), desc: t('howItWorks.step2.desc') },
+          { step: '03', title: t('howItWorks.step3.title'), desc: t('howItWorks.step3.desc') },
+        ]}
+      />
 
       {/* ── FAQ ────────────────────────────────────────────────────── */}
       <FaqSection />

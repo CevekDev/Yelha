@@ -81,16 +81,16 @@
     "legend": {
       "text": "1 token = 1 text message",
       "voice": "2 tokens = 1 voice message",
-      "predefined": "0 token = predefined replies",
       "noExpiry": "Tokens never expire"
     },
     "plans": {
       "starter": {
         "desc": "Perfect to get started",
         "features": [
-          "500 tokens (e.g. 500 texts or 200 voice)",
-          "AI Bot",
+          "500 tokens",
+          "1 bot per platform",
           "Multilingual AI (Darija, AR, FR, EN)",
+          "Voice transcription",
           "Automatic order taking",
           "Custom instructions",
           "Order confirmation"
@@ -99,35 +99,35 @@
       "business": {
         "desc": "Most popular",
         "features": [
-          "2,000 tokens (e.g. 2,000 texts or 1,000 voice)",
+          "2,000 tokens",
+          "2 bots per platform",
           "Everything in Starter",
           "Shopify & WooCommerce integration",
-          "Voice transcription",
-          "Multi Telegram bots",
+          "Manual order confirmation",
           "Priority support"
         ]
       },
       "pro": {
         "desc": "High volume",
         "features": [
-          "5,000 tokens (e.g. 5,000 texts or 2,500 voice)",
+          "5,000 tokens",
+          "3 bots per platform",
           "Everything in Business",
           "Delivery company integration",
           "Automatic order confirmation",
           "Google Sheets integration",
-          "Multi Telegram bots",
           "Priority support"
         ]
       },
       "agency": {
         "desc": "Agencies & resellers",
         "features": [
-          "15,000 tokens (e.g. 15,000 texts or 7,500 voice)",
+          "15,000 tokens",
+          "5 bots per platform",
           "Everything in Pro",
           "Automatic parcel tracking",
           "Unlimited bots",
-          "Dedicated support",
-          "Custom onboarding"
+          "Dedicated support"
         ]
       }
     }

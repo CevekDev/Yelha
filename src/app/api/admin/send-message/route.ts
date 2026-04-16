@@ -49,8 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Aucun destinataire trouvé' }, { status: 400 });
   }
 
-  // Resend free plan: use onboarding@resend.dev as FROM (no display name)
-  const FROM = 'onboarding@resend.dev';
+  const FROM = process.env.RESEND_FROM ?? 'YelhaDms <noreply@dms.yelha.net>';
 
   const results = await Promise.allSettled(
     recipients.map(r =>

@@ -25,6 +25,9 @@ export default async function ConversationsPage({
           },
         },
       },
+      contactContexts: {
+        select: { contactId: true, metadata: true },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });

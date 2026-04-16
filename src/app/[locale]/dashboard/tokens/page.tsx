@@ -82,7 +82,12 @@ export default function TokensPage() {
       });
       const data = await res.json();
       if (data.url) {
-        window.location.href = data.url;
+        // Force top-level navigation to avoid iframe context issues with epay.poste.dz
+        if (window.top) {
+          window.top.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
       } else {
         toast({ title: 'Erreur', description: data.error, variant: 'destructive' });
       }

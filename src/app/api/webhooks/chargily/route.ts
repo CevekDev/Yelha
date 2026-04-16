@@ -46,7 +46,11 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction(async (tx) => {
       const user = await tx.user.update({
         where: { id: userId },
-        data: { tokenBalance: { increment: tokenAmount } },
+        data: {
+          tokenBalance: { increment: tokenAmount },
+          // Reset alert flag so user gets notified again if balance drops low
+          lowTokenAlertSent: false,
+        },
       });
 
       await tx.tokenTransaction.create({

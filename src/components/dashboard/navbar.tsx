@@ -3,6 +3,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Coins, ShoppingCart, Menu } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useEffect, useState } from 'react';
 
 const ORANGE = '#FF6B2C';
@@ -75,6 +76,7 @@ export function DashboardNavbar({ onMenuClick }: DashboardNavbarProps) {
         >
           💡 Help Us
         </a>
+        <ThemeToggle className="hidden sm:flex" />
         <div className="hidden sm:block">
           <LanguageSwitcher />
         </div>

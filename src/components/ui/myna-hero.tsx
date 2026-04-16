@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Menu, Bot, Send, Globe, Mic } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useTranslations } from 'next-intl';
 
 const ORANGE = '#FF6B2C';
@@ -90,6 +91,7 @@ export function MynaHero({ locale }: MynaHeroProps) {
 
           {/* Desktop actions */}
           <div className="hidden md:flex items-center gap-3">
+            <ThemeToggle />
             <LanguageSwitcher />
             <Link href={`/${locale}/auth/signin`}>
               <button className="font-mono text-sm text-white/70 hover:text-white px-4 py-2 rounded-lg transition-colors">
@@ -115,8 +117,9 @@ export function MynaHero({ locale }: MynaHeroProps) {
             </SheetTrigger>
             <SheetContent side="right" className="bg-[#0A0A0A] border-white/10 text-white">
               <div className="flex flex-col gap-6 mt-8">
-                <div className="px-1">
+                <div className="px-1 flex items-center gap-3">
                   <LanguageSwitcher />
+                  <ThemeToggle />
                 </div>
                 {navLinks.map(link => (
                   <a

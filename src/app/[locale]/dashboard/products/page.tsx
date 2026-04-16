@@ -15,6 +15,7 @@ export default async function ProductsPage({
   const products = await prisma.product.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: 'desc' },
+    include: { category: { select: { id: true, name: true } } },
   });
 
   const user = await prisma.user.findUnique({

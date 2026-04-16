@@ -72,6 +72,7 @@ async function main() {
   console.log('✅ System prompt configured');
 
   // Create token packages (prices in DZD)
+  // Use findFirst by name to avoid CUID conflicts if packages were auto-created
   const packages = [
     { name: 'Starter',  tokens: 500,   price: 2500,  currency: 'DZD', isActive: true, isFeatured: false },
     { name: 'Business', tokens: 2000,  price: 5000,  currency: 'DZD', isActive: true, isFeatured: true  },
@@ -80,11 +81,15 @@ async function main() {
   ];
 
   for (const pkg of packages) {
-    await prisma.tokenPackage.upsert({
-      where: { id: pkg.name.toLowerCase() },
-      update: { tokens: pkg.tokens, price: pkg.price, currency: pkg.currency, isActive: pkg.isActive, isFeatured: pkg.isFeatured },
-      create: { id: pkg.name.toLowerCase(), ...pkg },
-    });
+    const existing = await prisma.tokenPackage.findFirst({ where: { name: pkg.name } });
+    if (existing) {
+      await prisma.tokenPackage.update({
+        where: { id: existing.id },
+        data: { tokens: pkg.tokens, price: pkg.price, currency: pkg.currency, isActive: pkg.isActive, isFeatured: pkg.isFeatured },
+      });
+    } else {
+      await prisma.tokenPackage.create({ data: pkg });
+    }
   }
   console.log('✅ Token packages created');
 

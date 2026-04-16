@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
-      data: { tokenBalance: newBalance },
+      data: { tokenBalance: newBalance, lowTokenAlertSent: false },
     }),
     prisma.tokenTransaction.create({
       data: {

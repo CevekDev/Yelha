@@ -197,7 +197,6 @@ export default function YelhaPricing({ locale }: YelhaPricingProps) {
           >
             <span>💬 {t('pricing.legend.text')}</span>
             <span>🎤 {t('pricing.legend.voice')}</span>
-            <span>⚡ {t('pricing.legend.predefined')}</span>
             <span>♾️ {t('pricing.legend.noExpiry')}</span>
           </m.div>
         </div>

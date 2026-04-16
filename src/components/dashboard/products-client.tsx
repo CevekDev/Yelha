@@ -1,15 +1,21 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Package, Plus, Search, Edit2, Trash2, Lock,
-  ShoppingBag, AlertCircle, X, Check,
+  ShoppingBag, AlertCircle, X, Check, Tag,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useFeatureGate } from './upgrade-modal';
 
 const ORANGE = '#FF6B2C';
+
+type Category = {
+  id: string;
+  name: string;
+  description: string | null;
+};
 
 type Product = {
   id: string;
@@ -24,6 +30,8 @@ type Product = {
   sizes: string[];
   models: string[];
   colors: string[];
+  categoryId: string | null;
+  category: { id: string; name: string } | null;
 };
 
 const EMPTY_FORM = {
@@ -35,6 +43,7 @@ const EMPTY_FORM = {
   sizes: [] as string[],
   models: [] as string[],
   colors: [] as string[],
+  categoryId: '',
 };
 
 /** Simple tag-input: type a value then press Enter or comma */
@@ -89,6 +98,8 @@ export default function ProductsClient({
   const router = useRouter();
   const { gate, modal } = useFeatureGate();
   const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // null = "Toutes"
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -100,10 +111,31 @@ export default function ProductsClient({
   const [importKey, setImportKey] = useState('');
   const [importSecret, setImportSecret] = useState('');
 
-  const filtered = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.brand || '').toLowerCase().includes(search.toLowerCase())
-  );
+  // Category management modal states
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDesc, setNewCategoryDesc] = useState('');
+  const [categoryError, setCategoryError] = useState('');
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
+  const [editCategoryDesc, setEditCategoryDesc] = useState('');
+
+  // Load categories on mount
+  useEffect(() => {
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setCategories(data); })
+      .catch(() => {});
+  }, []);
+
+  const filtered = products.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.brand || '').toLowerCase().includes(search.toLowerCase());
+    const matchesCategory =
+      selectedCategory === null || p.categoryId === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const openCreate = () => {
     setEditProduct(null);
@@ -123,6 +155,7 @@ export default function ProductsClient({
       sizes: p.sizes || [],
       models: p.models || [],
       colors: p.colors || [],
+      categoryId: p.categoryId || '',
     });
     setError('');
     setShowForm(true);
@@ -146,6 +179,7 @@ export default function ProductsClient({
         sizes: form.sizes,
         models: form.models,
         colors: form.colors,
+        categoryId: form.categoryId || null,
         ...(editProduct ? { id: editProduct.id } : {}),
       };
 
@@ -194,9 +228,128 @@ export default function ProductsClient({
     });
   };
 
+  // Category CRUD
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) { setCategoryError('Le nom est obligatoire'); return; }
+    setCategoryError('');
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newCategoryName.trim(), description: newCategoryDesc.trim() || null }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setCategoryError(d.error || 'Erreur');
+      return;
+    }
+    const created = await res.json();
+    setCategories(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewCategoryName('');
+    setNewCategoryDesc('');
+    setShowNewCategoryModal(false);
+  };
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (!confirm(`Supprimer la catégorie "${name}" ? Les produits associés perdront leur catégorie.`)) return;
+    const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setCategories(prev => prev.filter(c => c.id !== id));
+      // Remove category from products in local state
+      setProducts(prev => prev.map(p => p.categoryId === id ? { ...p, categoryId: null, category: null } : p));
+      if (selectedCategory === id) setSelectedCategory(null);
+    }
+  };
+
+  const openEditCategory = (cat: Category) => {
+    setEditingCategory(cat);
+    setEditCategoryName(cat.name);
+    setEditCategoryDesc(cat.description || '');
+    setCategoryError('');
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editingCategory) return;
+    if (!editCategoryName.trim()) { setCategoryError('Le nom est obligatoire'); return; }
+    setCategoryError('');
+    const res = await fetch(`/api/categories/${editingCategory.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editCategoryName.trim(), description: editCategoryDesc.trim() || null }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setCategoryError(d.error || 'Erreur');
+      return;
+    }
+    const updated = await res.json();
+    setCategories(prev => prev.map(c => c.id === updated.id ? updated : c).sort((a, b) => a.name.localeCompare(b.name)));
+    // Update local product states
+    setProducts(prev => prev.map(p =>
+      p.categoryId === updated.id ? { ...p, category: { id: updated.id, name: updated.name } } : p
+    ));
+    setEditingCategory(null);
+  };
+
   return (
     <div className="space-y-5">
       {modal}
+
+      {/* Categories section */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Tag className="w-4 h-4 text-white/30 flex-shrink-0" />
+        {/* "Toutes" pill */}
+        <button
+          onClick={() => setSelectedCategory(null)}
+          className={`flex items-center gap-1 px-3 py-1 rounded-full font-mono text-xs font-semibold transition-all border ${
+            selectedCategory === null
+              ? 'text-white border-transparent'
+              : 'text-white/50 border-white/[0.08] hover:border-white/20 hover:text-white/70'
+          }`}
+          style={selectedCategory === null ? { background: ORANGE, borderColor: ORANGE } : {}}
+        >
+          Toutes
+        </button>
+
+        {categories.map(cat => (
+          <div key={cat.id} className="flex items-center gap-0.5 group">
+            <button
+              onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full font-mono text-xs font-semibold transition-all border ${
+                selectedCategory === cat.id
+                  ? 'text-white border-transparent'
+                  : 'text-white/50 border-white/[0.08] hover:border-white/20 hover:text-white/70'
+              }`}
+              style={selectedCategory === cat.id ? { background: ORANGE, borderColor: ORANGE } : {}}
+            >
+              {cat.name}
+            </button>
+            {/* Edit category name inline */}
+            <button
+              onClick={() => openEditCategory(cat)}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded-full text-white/30 hover:text-white/70 transition-all"
+              title="Renommer"
+            >
+              <Edit2 className="w-2.5 h-2.5" />
+            </button>
+            <button
+              onClick={() => handleDeleteCategory(cat.id, cat.name)}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded-full text-white/30 hover:text-red-400 transition-all"
+              title="Supprimer"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        ))}
+
+        <button
+          onClick={() => { setShowNewCategoryModal(true); setCategoryError(''); setNewCategoryName(''); setNewCategoryDesc(''); }}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-xs text-white/30 border border-white/[0.08] hover:border-white/20 hover:text-white/50 transition-all"
+        >
+          <Plus className="w-3 h-3" />
+          Catégorie
+        </button>
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 w-full">
@@ -301,6 +454,14 @@ export default function ProductsClient({
                     <div>
                       <p className="font-mono text-sm text-white font-medium">{p.name}</p>
                       {p.brand && <p className="font-mono text-xs text-white/30">{p.brand}</p>}
+                      {p.category && (
+                        <span
+                          className="inline-block mt-1 px-2 py-0.5 rounded-full font-mono text-[10px] font-semibold"
+                          style={{ background: `${ORANGE}20`, color: ORANGE }}
+                        >
+                          {p.category.name}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -376,7 +537,6 @@ export default function ProductsClient({
           />
           <div className="relative w-full max-w-lg bg-[#0D0D10] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
-
               <h2 className="font-mono font-bold text-white text-lg">
                 {editProduct ? t('form.editTitle') : t('form.newTitle')}
               </h2>
@@ -429,6 +589,22 @@ export default function ProductsClient({
                     className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
                   />
                 </div>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block font-mono text-xs text-white/50 mb-1.5">Catégorie</label>
+                <select
+                  value={form.categoryId}
+                  onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white focus:outline-none focus:border-orange-500/40 appearance-none"
+                  style={{ background: 'rgba(255,255,255,0.04)' }}
+                >
+                  <option value="">Aucune catégorie</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Description */}
@@ -513,6 +689,138 @@ export default function ProductsClient({
         </div>
       )}
 
+      {/* New Category Modal */}
+      {showNewCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowNewCategoryModal(false)}
+          />
+          <div className="relative w-full max-w-sm bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-mono font-bold text-white">Nouvelle catégorie</h2>
+              <button
+                onClick={() => setShowNewCategoryModal(false)}
+                className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06] transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block font-mono text-xs text-white/50 mb-1.5">Nom <span style={{ color: ORANGE }}>*</span></label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={e => setNewCategoryName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleCreateCategory(); }}
+                  placeholder="Ex: Chaussures, Électronique…"
+                  autoFocus
+                  className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-white/50 mb-1.5">Description (optionnel)</label>
+                <input
+                  type="text"
+                  value={newCategoryDesc}
+                  onChange={e => setNewCategoryDesc(e.target.value)}
+                  placeholder="Description courte…"
+                  className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
+                />
+              </div>
+              {categoryError && (
+                <div className="flex items-center gap-2 text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="font-mono text-xs">{categoryError}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setShowNewCategoryModal(false)}
+                className="flex-1 py-2.5 rounded-xl font-mono text-sm text-white/50 border border-white/[0.08] hover:border-white/20 hover:text-white/70 transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleCreateCategory}
+                className="flex-1 py-2.5 rounded-xl font-mono text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: ORANGE }}
+              >
+                <Check className="w-4 h-4" />
+                Créer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Category Modal */}
+      {editingCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setEditingCategory(null)}
+          />
+          <div className="relative w-full max-w-sm bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-mono font-bold text-white">Modifier la catégorie</h2>
+              <button
+                onClick={() => setEditingCategory(null)}
+                className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06] transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block font-mono text-xs text-white/50 mb-1.5">Nom <span style={{ color: ORANGE }}>*</span></label>
+                <input
+                  type="text"
+                  value={editCategoryName}
+                  onChange={e => setEditCategoryName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleUpdateCategory(); }}
+                  autoFocus
+                  className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-white/50 mb-1.5">Description (optionnel)</label>
+                <input
+                  type="text"
+                  value={editCategoryDesc}
+                  onChange={e => setEditCategoryDesc(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40"
+                />
+              </div>
+              {categoryError && (
+                <div className="flex items-center gap-2 text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="font-mono text-xs">{categoryError}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setEditingCategory(null)}
+                className="flex-1 py-2.5 rounded-xl font-mono text-sm text-white/50 border border-white/[0.08] hover:border-white/20 hover:text-white/70 transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleUpdateCategory}
+                className="flex-1 py-2.5 rounded-xl font-mono text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: ORANGE }}
+              >
+                <Check className="w-4 h-4" />
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import Modal */}
       {importModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -577,7 +885,7 @@ export default function ProductsClient({
 
               <div className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]">
                 <p className="font-mono text-xs text-white/40 leading-relaxed">
-                  ℹ️ {t('importSecurityNote')}
+                  {t('importSecurityNote')}
                 </p>
               </div>
             </div>

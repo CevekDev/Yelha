@@ -10,6 +10,7 @@ export async function GET() {
   const products = await prisma.product.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: 'desc' },
+    include: { category: { select: { id: true, name: true } } },
   });
 
   return NextResponse.json(products);
@@ -26,10 +27,16 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, brand, price, description, stock, sizes, models, colors } = body;
+  const { name, brand, price, description, stock, sizes, models, colors, categoryId } = body;
 
   if (!name?.trim()) return NextResponse.json({ error: 'Le nom est obligatoire' }, { status: 400 });
   if (price == null || isNaN(Number(price))) return NextResponse.json({ error: 'Le prix est obligatoire' }, { status: 400 });
+
+  // Validate categoryId belongs to this user if provided
+  if (categoryId) {
+    const cat = await prisma.productCategory.findFirst({ where: { id: categoryId, userId: session.user.id } });
+    if (!cat) return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 });
+  }
 
   const product = await prisma.product.create({
     data: {
@@ -42,7 +49,9 @@ export async function POST(req: NextRequest) {
       sizes: Array.isArray(sizes) ? sizes : [],
       models: Array.isArray(models) ? models : [],
       colors: Array.isArray(colors) ? colors : [],
+      categoryId: categoryId || null,
     },
+    include: { category: { select: { id: true, name: true } } },
   });
 
   return NextResponse.json(product, { status: 201 });
@@ -53,13 +62,19 @@ export async function PUT(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { id, name, brand, price, description, stock, isActive, sizes, models, colors } = body;
+  const { id, name, brand, price, description, stock, isActive, sizes, models, colors, categoryId } = body;
 
   if (!id) return NextResponse.json({ error: 'ID manquant' }, { status: 400 });
 
   // Verify ownership
   const existing = await prisma.product.findFirst({ where: { id, userId: session.user.id } });
   if (!existing) return NextResponse.json({ error: 'Produit introuvable' }, { status: 404 });
+
+  // Validate categoryId belongs to this user if provided
+  if (categoryId) {
+    const cat = await prisma.productCategory.findFirst({ where: { id: categoryId, userId: session.user.id } });
+    if (!cat) return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 });
+  }
 
   const data: any = {};
   if (name !== undefined) data.name = name.trim();
@@ -71,8 +86,13 @@ export async function PUT(req: NextRequest) {
   if (sizes !== undefined) data.sizes = Array.isArray(sizes) ? sizes : [];
   if (models !== undefined) data.models = Array.isArray(models) ? models : [];
   if (colors !== undefined) data.colors = Array.isArray(colors) ? colors : [];
+  if ('categoryId' in body) data.categoryId = categoryId || null;
 
-  const product = await prisma.product.update({ where: { id }, data });
+  const product = await prisma.product.update({
+    where: { id },
+    data,
+    include: { category: { select: { id: true, name: true } } },
+  });
   return NextResponse.json(product);
 }
 

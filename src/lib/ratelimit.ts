@@ -30,7 +30,7 @@ export const apiRatelimit = new Ratelimit({
 
 export function getRateLimitKey(req: NextRequest, userId?: string): string {
   if (userId) return `user:${userId}`;
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',').at(-1)!.trim() : 'anonymous';
+  const forwarded = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip');
+  const ip = forwarded ? forwarded.split(',')[0].trim() : 'anonymous';
   return `ip:${ip}`;
 }

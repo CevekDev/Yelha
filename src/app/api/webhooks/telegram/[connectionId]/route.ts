@@ -16,6 +16,23 @@ import {
 } from '@/lib/messages';
 
 
+// ── Fetch Telegram profile photo URL (temporary but functional) ──────────
+async function getTelegramProfilePhotoUrl(botToken: string, userId: number): Promise<string | null> {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos?user_id=${userId}&limit=1`);
+    const data = await res.json();
+    const fileId = data?.result?.photos?.[0]?.[0]?.file_id;
+    if (!fileId) return null;
+    const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
+    const fileData = await fileRes.json();
+    const filePath = fileData?.result?.file_path;
+    if (!filePath) return null;
+    return `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { connectionId: string } }
@@ -65,12 +82,42 @@ export async function POST(
     (connection as any).telegramChatId = String(chatId);
   }
 
+  // ── Build merged metadata with profile photo (refresh if older than 1h) ──
+  const conn = connection; // non-null reference for use inside closures
+  async function buildMergedMetadata(): Promise<Record<string, any>> {
+    const existing = await prisma.contactContext.findUnique({
+      where: { connectionId_contactId: { connectionId: conn.id, contactId } },
+      select: { metadata: true },
+    });
+    const existingMeta = (existing?.metadata as Record<string, any> | null) ?? {};
+
+    const lastFetch = existingMeta.lastPhotoFetch ? Number(existingMeta.lastPhotoFetch) : 0;
+    const oneHour = 60 * 60 * 1000;
+    const needsRefresh = !telegramUser?.is_bot && (Date.now() - lastFetch > oneHour);
+
+    let photoUrl: string | null = existingMeta.profilePhotoUrl ?? null;
+    if (telegramUser && needsRefresh) {
+      const fetched = await getTelegramProfilePhotoUrl(token, telegramUser.id);
+      if (fetched !== null) {
+        photoUrl = fetched;
+      }
+    }
+
+    return {
+      ...existingMeta,
+      ...(telegramUsername ? { telegramUsername } : {}),
+      ...(photoUrl ? { profilePhotoUrl: photoUrl } : {}),
+      ...(needsRefresh ? { lastPhotoFetch: Date.now() } : {}),
+    };
+  }
+
   // Handle /start command
   if (text === '/start') {
     if (connection.welcomeMessage) {
       await sendTelegramMessage(token, chatId, connection.welcomeMessage);
     }
-    await upsertContactContext(connection.id, contactId, { contactName, metadata: telegramUsername ? { telegramUsername } : undefined });
+    const metadata = await buildMergedMetadata();
+    await upsertContactContext(connection.id, contactId, { contactName, metadata });
     return NextResponse.json({ ok: true });
   }
 
@@ -172,8 +219,7 @@ export async function POST(
     ];
 
     const rawResponse = await callDeepSeek(aiMessages, systemPrompt);
-
-    logCost(user.id, messageType === 'voice' ? 'deepseek_voice' : 'deepseek_text');
+    // logCost moved below — only charged if a valid response is produced
 
     // ── Hors sujet → spam score approach ────────────────────────────────
     if (rawResponse.startsWith('[HORS_SUJET]')) {
@@ -181,7 +227,7 @@ export async function POST(
       const blocked = await handleSpam(conversation.id);
       if (blocked) {
         await saveInboundOnly({ conversationId: conversation.id, content: inboundContent, type: messageType });
-        await upsertContactContext(connection.id, contactId, { contactName });
+        await upsertContactContext(connection.id, contactId, { contactName, metadata: await buildMergedMetadata() });
         if (responseText) await sendTelegramMessage(token, chatId, responseText);
         return NextResponse.json({ ok: true });
       }
@@ -261,6 +307,11 @@ export async function POST(
 
   if (!responseText) return NextResponse.json({ ok: true });
 
+  // ── Facturer le coût API uniquement si une réponse est produite ───────────
+  if (tokensRequired > 0) {
+    logCost(user.id, messageType === 'voice' ? 'deepseek_voice' : 'deepseek_text');
+  }
+
   // ── Débiter tokens (atomique) ─────────────────────────────────────────────
   if (tokensRequired > 0 && !user.unlimitedTokens) {
     let newBalance: number;
@@ -306,7 +357,7 @@ export async function POST(
       inbound: { content: inboundContent, type: messageType, tokensUsed: tokensRequired },
       outbound: { content: responseText },
     });
-    await upsertContactContext(connection.id, contactId, { contactName, metadata: telegramUsername ? { telegramUsername } : undefined });
+    await upsertContactContext(connection.id, contactId, { contactName, metadata: await buildMergedMetadata() });
   } catch (err) {
     console.error('[Telegram] Save error', err);
   }
@@ -339,7 +390,7 @@ async function buildTelegramSystemPrompt(connection: any, contactContext: string
 
   const productsStr = products.length > 0
     ? products.map((p: any) =>
-        `• ${p.name}${p.price ? ` — ${p.price} DA` : ''}${p.stock !== null ? ` (Stock: ${p.stock})` : ''}${p.description ? ` [détails disponibles si demandé]` : ''}`
+        `• ${p.name}${p.price ? ` — ${p.price} DA` : ''}${p.description ? ` [détails disponibles si demandé]` : ''}`
       ).join('\n')
     : 'Aucun produit configuré.';
 
@@ -367,12 +418,14 @@ CATALOGUE PRODUITS DE LA BOUTIQUE
 ══════════════════════════════════════
 ${productsStr}
 
-RÈGLES PRODUITS :
-- Quand tu parles d'un produit (recommandation ou réponse), donne TOUJOURS son nom, prix et stock.
-- Ne donne PAS la description à moins que le client demande explicitement plus de détails.
-- N'invente JAMAIS un produit absent de cette liste.
+RÈGLES PRODUITS (STRICTES) :
+- Quand tu parles d'un produit, donne son nom et son prix. C'est tout par défaut.
+- ❌ NE MENTIONNE JAMAIS le stock/disponibilité sauf si le client demande EXPLICITEMENT.
+- ❌ NE donne PAS la description sauf si le client demande "plus de détails" ou "décris-moi".
+- ❌ N'invente JAMAIS un produit absent de cette liste.
+- Si le client demande "quoi comme produits" → liste les noms + prix uniquement.
 
-${productDetailsStr ? `DESCRIPTIONS DÉTAILLÉES (à n'utiliser QUE si le client demande des détails) :\n${productDetailsStr}` : ''}`;
+${productDetailsStr ? `DESCRIPTIONS (à n'utiliser QUE si le client demande des détails) :\n${productDetailsStr}` : ''}`;
 }
 
 async function saveOrderFromBot(connection: any, contactId: string, contactName: string | null, data: any) {

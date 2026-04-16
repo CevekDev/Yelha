@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, useRef } from 'react';
+import { useState, useEffect, useTransition, useRef, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   MessageSquare, Bot, Search, Send, Plug, RefreshCw,
@@ -18,6 +18,46 @@ function formatRelative(date: Date): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}min`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
   return `${Math.floor(diff / 86400)}j`;
+}
+
+function ContactAvatar({
+  name,
+  photoUrl,
+  size = 'md',
+  style: extraStyle,
+}: {
+  name: string;
+  photoUrl?: string | null;
+  size?: 'sm' | 'md';
+  style?: React.CSSProperties;
+}) {
+  const dim = size === 'sm' ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs';
+  const fallbackStyle = extraStyle ?? { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' };
+
+  if (photoUrl) {
+    return (
+      <div className={`${dim} rounded-full flex-shrink-0 relative overflow-hidden`} style={fallbackStyle}>
+        {/* Initials shown underneath as fallback */}
+        <span className="absolute inset-0 flex items-center justify-center font-mono font-bold">
+          {name[0]?.toUpperCase() || '?'}
+        </span>
+        <img
+          src={photoUrl}
+          alt={name}
+          className={`${dim} rounded-full object-cover absolute inset-0`}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`${dim} rounded-full flex items-center justify-center font-mono font-bold flex-shrink-0`}
+      style={fallbackStyle}
+    >
+      {name[0]?.toUpperCase() || '?'}
+    </div>
+  );
 }
 
 type Message = {
@@ -50,6 +90,7 @@ type Connection = {
   botName: string;
   isActive: boolean;
   conversations: Conversation[];
+  contactContexts?: { contactId: string; metadata: any }[];
 };
 
 type ContactContext = {
@@ -57,8 +98,20 @@ type ContactContext = {
   wilaya: string | null;
   notes: string | null;
   lastSeenAt: Date;
-  metadata?: { telegramUsername?: string } | null;
+  metadata?: { telegramUsername?: string; profilePhotoUrl?: string; lastPhotoFetch?: number } | null;
 };
+
+type ContactPhotoMap = Record<string, string | undefined>; // contactId → profilePhotoUrl
+
+function buildPhotoMap(connection: Connection | null): ContactPhotoMap {
+  if (!connection?.contactContexts) return {};
+  const map: ContactPhotoMap = {};
+  for (const ctx of connection.contactContexts) {
+    const url = (ctx.metadata as any)?.profilePhotoUrl;
+    if (url) map[ctx.contactId] = url;
+  }
+  return map;
+}
 
 export default function ConversationsClient({ connections }: { connections: Connection[] }) {
   const t = useTranslations('conversations');
@@ -79,6 +132,9 @@ export default function ConversationsClient({ connections }: { connections: Conn
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Build a contactId → profilePhotoUrl map from the pre-loaded contactContexts
+  const photoMap = useMemo(() => buildPhotoMap(selectedConnection), [selectedConnection]);
 
   const totalConvs = connections.reduce((acc, c) => acc + c.conversations.length, 0);
 
@@ -309,10 +365,10 @@ export default function ConversationsClient({ connections }: { connections: Conn
                   <button className="flex items-start gap-2.5 flex-1 min-w-0 text-left"
                     onClick={() => { setSelectedConv(conv); setMobileView('thread'); loadMessages(conv.id, selectedConnection!.id, conv.contactId); }}>
                     <div className="relative flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-bold"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
-                        {(conv.contactName || conv.contactId)[0]?.toUpperCase() || '?'}
-                      </div>
+                      <ContactAvatar
+                        name={conv.contactName || conv.contactId}
+                        photoUrl={photoMap[conv.contactId]}
+                      />
                       {state.needsHelp && (
                         <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 flex items-center justify-center">
                           <AlertTriangle className="w-2 h-2 text-white" />
@@ -355,9 +411,11 @@ export default function ConversationsClient({ connections }: { connections: Conn
                 <button onClick={() => setMobileView('list')} className="lg:hidden p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-all flex-shrink-0">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-mono font-bold flex-shrink-0" style={{ background: `${ORANGE}20`, color: ORANGE }}>
-                  {(selectedConv.contactName || selectedConv.contactId)[0]?.toUpperCase() || '?'}
-                </div>
+                <ContactAvatar
+                  name={selectedConv.contactName || selectedConv.contactId}
+                  photoUrl={contactCtx?.metadata?.profilePhotoUrl ?? photoMap[selectedConv.contactId]}
+                  style={{ background: `${ORANGE}20`, color: ORANGE }}
+                />
                 <div className="flex-1 min-w-0">
                   <p className="font-mono text-sm font-semibold text-white truncate">
                     {selectedConv.contactName || selectedConv.contactId}
@@ -400,21 +458,41 @@ export default function ConversationsClient({ connections }: { connections: Conn
                   <div className="flex items-center justify-center h-full">
                     <p className="font-mono text-xs text-white/20">{t('noMessages')}</p>
                   </div>
-                ) : messages.filter(m => m.direction !== 'system').map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[78%] rounded-2xl px-3 py-2 ${msg.direction === 'outbound' ? 'rounded-tr-sm' : 'rounded-tl-sm bg-white/[0.06] text-white/80'}`}
-                      style={msg.direction === 'outbound' ? { background: `${ORANGE}25` } : {}}>
-                      {msg.type === 'voice' && <p className="font-mono text-[9px] text-white/30 mb-0.5">🎤 {t('voiceTranscribed')}</p>}
-                      {msg.type === 'image' && <p className="font-mono text-[9px] text-white/30 mb-0.5">🖼️ {t('image')}</p>}
-                      {msg.type === 'manual' && <p className="font-mono text-[9px] mb-0.5" style={{ color: `${ORANGE}90` }}>✏️ Vous</p>}
-                      <p className="font-mono text-xs leading-relaxed text-white/80 whitespace-pre-wrap">{msg.content}</p>
-                      <p className="font-mono text-[9px] text-white/20 mt-0.5 text-right">
-                        {new Date(msg.createdAt).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' })}
-                        {msg.tokensUsed > 0 && ` · ${msg.tokensUsed}t`}
-                      </p>
+                ) : messages.filter(m => m.direction !== 'system').map((msg, idx, arr) => {
+                  const isInbound = msg.direction === 'inbound';
+                  const prevMsg = idx > 0 ? arr[idx - 1] : null;
+                  const isFirstInGroup = !prevMsg || prevMsg.direction !== msg.direction;
+                  const contactPhotoUrl = contactCtx?.metadata?.profilePhotoUrl ?? photoMap[selectedConv!.contactId];
+                  return (
+                    <div key={msg.id} className={`flex items-end gap-1.5 ${isInbound ? 'justify-start' : 'justify-end'}`}>
+                      {/* Avatar on the left for inbound messages — only on first in group */}
+                      {isInbound && (
+                        <div className="flex-shrink-0 self-end mb-0.5">
+                          {isFirstInGroup ? (
+                            <ContactAvatar
+                              name={selectedConv!.contactName || selectedConv!.contactId}
+                              photoUrl={contactPhotoUrl}
+                              size="sm"
+                            />
+                          ) : (
+                            <div className="w-7 h-7" />
+                          )}
+                        </div>
+                      )}
+                      <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isInbound ? 'rounded-tl-sm bg-white/[0.06] text-white/80' : 'rounded-tr-sm'}`}
+                        style={!isInbound ? { background: `${ORANGE}25` } : {}}>
+                        {msg.type === 'voice' && <p className="font-mono text-[9px] text-white/30 mb-0.5">🎤 {t('voiceTranscribed')}</p>}
+                        {msg.type === 'image' && <p className="font-mono text-[9px] text-white/30 mb-0.5">🖼️ {t('image')}</p>}
+                        {msg.type === 'manual' && <p className="font-mono text-[9px] mb-0.5" style={{ color: `${ORANGE}90` }}>✏️ Vous</p>}
+                        <p className="font-mono text-xs leading-relaxed text-white/80 whitespace-pre-wrap">{msg.content}</p>
+                        <p className="font-mono text-[9px] text-white/20 mt-0.5 text-right">
+                          {new Date(msg.createdAt).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' })}
+                          {msg.tokensUsed > 0 && ` · ${msg.tokensUsed}t`}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
 
