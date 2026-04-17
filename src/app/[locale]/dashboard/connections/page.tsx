@@ -7,7 +7,7 @@ import {
   Plus, Send, Trash2, Loader2, Clock,
   MessageCircle, Instagram, Facebook, HelpCircle,
   CheckCircle, ChevronDown, ChevronUp, Copy, Check,
-  Bot, Hash, ExternalLink, AlertTriangle, X, ArrowRight,
+  Bot, Hash, AlertTriangle, X, ArrowRight,
 } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
@@ -24,7 +24,7 @@ const INPUT_CLASS = `w-full bg-white/[0.04] border border-white/[0.07] rounded-x
   text-sm font-mono text-white placeholder:text-white/20
   focus:outline-none focus:border-[#FF6B2C]/40 transition-colors`;
 
-type PlatformTab = 'TELEGRAM' | 'INSTAGRAM';
+type PlatformTab = 'TELEGRAM';
 
 function ConnectionsPageInner() {
   const t = useTranslations('connections');
@@ -44,8 +44,6 @@ function ConnectionsPageInner() {
   // Telegram form
   const [tgForm, setTgForm] = useState({ name: '', botName: 'Assistant', telegramBotToken: '' });
 
-  // Instagram form (just name/botName — token via OAuth)
-  const [igForm, setIgForm] = useState({ name: '', botName: 'Assistant', businessName: '' });
 
   // Instagram OAuth result (from URL params after callback)
   const [igOAuthResult, setIgOAuthResult] = useState<{
@@ -66,15 +64,12 @@ function ConnectionsPageInner() {
 
     if (igSuccess === '1' && igVerifyToken) {
       setIgOAuthResult({ verifyToken: igVerifyToken, username: igUsername ?? '' });
-      setPlatformTab('INSTAGRAM');
       fetchConnections();
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     } else if (igError) {
       if (igError === 'no_instagram_account') {
         setIgNoAccountError(true);
-        setPlatformTab('INSTAGRAM');
-        setShowAdd(true);
       } else {
         const errorMessages: Record<string, string> = {
           denied: 'Connexion Instagram annulée.',
@@ -140,17 +135,6 @@ function ConnectionsPageInner() {
     }
   };
 
-  const handleConnectInstagram = () => {
-    if (!igForm.name) return;
-    // Redirect to OAuth flow — Instagram login page opens
-    const params = new URLSearchParams({
-      name: igForm.name,
-      botName: igForm.botName,
-      businessName: igForm.businessName,
-    });
-    window.location.href = `/api/instagram/auth?${params.toString()}`;
-  };
-
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopiedField(field);
@@ -189,27 +173,6 @@ function ConnectionsPageInner() {
       {/* Add form */}
       {showAdd && (
         <div style={{ ...CARD_STYLE, padding: '24px', borderColor: `${ORANGE}30` }}>
-          {/* Platform tab switcher */}
-          <div className="flex gap-2 mb-6 p-1 bg-white/[0.03] rounded-xl w-fit">
-            {([
-              { key: 'TELEGRAM', label: 'Telegram', icon: Send, color: SKY },
-              { key: 'INSTAGRAM', label: 'Instagram', icon: Instagram, color: IG_COLOR },
-            ] as const).map(p => {
-              const Icon = p.icon;
-              const active = platformTab === p.key;
-              return (
-                <button
-                  key={p.key}
-                  onClick={() => { setPlatformTab(p.key); }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xs font-semibold transition-all"
-                  style={active ? { background: `${p.color}20`, color: p.color, border: `1px solid ${p.color}30` } : { color: 'rgba(255,255,255,0.3)' }}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
 
           {/* ── Telegram form ── */}
           {platformTab === 'TELEGRAM' && (
@@ -247,56 +210,6 @@ function ConnectionsPageInner() {
             </>
           )}
 
-          {/* ── Instagram form ── */}
-          {platformTab === 'INSTAGRAM' && (
-            <>
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${IG_COLOR}20` }}>
-                  <Instagram className="w-4 h-4" style={{ color: IG_COLOR }} />
-                </div>
-                <h2 className="font-mono font-semibold text-white text-sm">Nouveau bot Instagram DM</h2>
-              </div>
-
-              <div className="space-y-3 mb-5">
-                <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Nom de la connexion</label>
-                  <input className={INPUT_CLASS} value={igForm.name} onChange={e => setIgForm(f => ({ ...f, name: e.target.value }))} placeholder="Mon Instagram Shop" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-white/40 font-mono mb-1.5 block">Nom du bot</label>
-                    <input className={INPUT_CLASS} value={igForm.botName} onChange={e => setIgForm(f => ({ ...f, botName: e.target.value }))} placeholder="Assistant" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-white/40 font-mono mb-1.5 block">Nom boutique <span className="text-white/20">(optionnel)</span></label>
-                    <input className={INPUT_CLASS} value={igForm.businessName} onChange={e => setIgForm(f => ({ ...f, businessName: e.target.value }))} placeholder="Ma Boutique" />
-                  </div>
-                </div>
-              </div>
-
-              {/* OAuth connect button */}
-              <button
-                onClick={handleConnectInstagram}
-                disabled={!igForm.name}
-                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-mono font-semibold text-sm text-white transition-all hover:opacity-90 disabled:opacity-40"
-                style={{
-                  background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-                  boxShadow: '0 4px 24px rgba(220,39,67,0.3)',
-                }}
-              >
-                <Instagram className="w-5 h-5" />
-                Se connecter avec Instagram
-                <ExternalLink className="w-3.5 h-3.5 opacity-60" />
-              </button>
-              <p className="text-center text-[11px] font-mono text-white/25 mt-2">
-                Vous serez redirigé vers la page officielle Instagram
-              </p>
-
-              <div className="flex justify-center mt-3">
-                <button onClick={() => setShowAdd(false)} className="font-mono text-sm text-white/40 hover:text-white/70 transition-colors">Annuler</button>
-              </div>
-            </>
-          )}
         </div>
       )}
 
@@ -524,6 +437,7 @@ function ConnectionsPageInner() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
+            { value: 'INSTAGRAM', label: 'Instagram DM', icon: Instagram, color: IG_COLOR },
             { value: 'WHATSAPP', label: 'WhatsApp Business', icon: MessageCircle, color: '#25d366' },
             { value: 'FACEBOOK', label: 'Facebook Messenger', icon: Facebook, color: '#1877f2' },
           ].map(p => {

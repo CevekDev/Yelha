@@ -66,7 +66,7 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
         <button
           key={item.href}
           onClick={() => setUpgradeModal({ plan: item.required!, feature: item.label })}
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all w-full text-white/20 hover:text-white/40 hover:bg-white/[0.03]"
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all w-full text-gray-300 dark:text-white/20 hover:text-gray-500 dark:hover:text-white/40 hover:bg-gray-100 dark:hover:bg-white/[0.03]"
         >
           <Icon className="w-4 h-4 flex-shrink-0 text-white/15" />
           <span className="flex-1 text-left">{item.label}</span>
@@ -83,8 +83,8 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
         className={cn(
           'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all group',
           isActive
-            ? 'text-white'
-            : 'text-white/40 hover:text-white/80 hover:bg-white/[0.04]'
+            ? 'text-gray-900 dark:text-white'
+            : 'text-gray-500 dark:text-white/40 hover:text-gray-800 dark:hover:text-white/80 hover:bg-gray-100 dark:hover:bg-white/[0.04]'
         )}
         style={isActive ? { background: `${ORANGE}20`, color: ORANGE } : {}}
       >
@@ -94,7 +94,7 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
         />
         <span className="flex-1">{item.label}</span>
         {item.soon && (
-          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-white/[0.06] text-white/30 border border-white/10 leading-none">
+          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-white/[0.06] text-gray-400 dark:text-white/30 border border-gray-300 dark:border-white/10 leading-none">
             {t('soon')}
           </span>
         )}
@@ -106,7 +106,7 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
   };
 
   return (
-    <div className="flex h-full w-64 flex-col bg-[#0D0D10] border-r border-white/[0.06]">
+    <div className="flex h-full w-64 flex-col bg-white dark:bg-[#0D0D10] border-r border-gray-200 dark:border-white/[0.06]">
       {upgradeModal && (
         <UpgradeModal
           requiredPlan={upgradeModal.plan as any}
@@ -115,7 +115,7 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
         />
       )}
       {/* Logo */}
-      <div className="flex h-14 lg:h-16 items-center px-5 border-b border-white/[0.06] flex-shrink-0">
+      <div className="flex h-14 lg:h-16 items-center px-5 border-b border-gray-200 dark:border-white/[0.06] flex-shrink-0">
         <Link href={`/${locale}`} className="flex items-center gap-2.5">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -135,7 +135,7 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
         </div>
 
         {/* Separator */}
-        <div className="my-3 border-t border-white/[0.06]" />
+        <div className="my-3 border-t border-gray-200 dark:border-white/[0.06]" />
 
         {/* Secondary sections */}
         <div className="space-y-0.5">
@@ -144,16 +144,16 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
       </nav>
 
       {/* User + signout */}
-      <div className="p-3 border-t border-white/[0.06] flex-shrink-0">
+      <div className="p-3 border-t border-gray-200 dark:border-white/[0.06] flex-shrink-0">
         <div className="px-3 mb-2">
-          <p className="text-sm font-medium text-white/80 truncate">
+          <p className="text-sm font-medium text-gray-700 dark:text-white/80 truncate">
             {session?.user.name || 'Utilisateur'}
           </p>
-          <p className="text-xs text-white/30 truncate">{session?.user.email}</p>
+          <p className="text-xs text-gray-400 dark:text-white/30 truncate">{session?.user.email}</p>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: `/${locale}/auth/signin` })}
-          className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all"
+          className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70 hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-all"
         >
           <LogOut className="w-4 h-4 flex-shrink-0" />
           {tNav('signOut')}

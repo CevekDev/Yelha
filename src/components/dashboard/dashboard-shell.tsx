@@ -38,7 +38,7 @@ export function DashboardShell({ children, planLevel = 'FREE' }: { children: Rea
   }, [sidebarOpen]);
 
   return (
-    <div className="flex h-screen bg-[#080810] overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-[#080810] overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex flex-shrink-0">
         <Sidebar planLevel={planLevel} />
@@ -74,7 +74,7 @@ export function DashboardShell({ children, planLevel = 'FREE' }: { children: Rea
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0D0D10] border-t border-white/[0.06] flex items-center justify-around px-2 h-16">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#0D0D10] border-t border-gray-200 dark:border-white/[0.06] flex items-center justify-around px-2 h-16">
         {bottomNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.exact
