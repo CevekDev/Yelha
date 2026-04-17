@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -26,13 +26,11 @@ const INPUT_CLASS = `w-full bg-white/[0.04] border border-white/[0.07] rounded-x
 
 type PlatformTab = 'TELEGRAM' | 'INSTAGRAM';
 
-export default function ConnectionsPage() {
+function ConnectionsPageInner() {
   const t = useTranslations('connections');
   const params = useParams();
   const locale = params.locale as string;
   const { toast } = useToast();
-
-  const searchParams = useSearchParams();
 
   const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,12 +55,13 @@ export default function ConnectionsPage() {
 
   useEffect(() => { fetchConnections(); }, []);
 
-  // Handle OAuth callback result from URL params
+  // Handle OAuth callback result from URL params (read directly from window to avoid useSearchParams/Suspense issue)
   useEffect(() => {
-    const igSuccess = searchParams.get('ig_success');
-    const igError = searchParams.get('ig_error');
-    const igVerifyToken = searchParams.get('ig_verify_token');
-    const igUsername = searchParams.get('ig_username');
+    const sp = new URLSearchParams(window.location.search);
+    const igSuccess = sp.get('ig_success');
+    const igError = sp.get('ig_error');
+    const igVerifyToken = sp.get('ig_verify_token');
+    const igUsername = sp.get('ig_username');
 
     if (igSuccess === '1' && igVerifyToken) {
       setIgOAuthResult({ verifyToken: igVerifyToken, username: igUsername ?? '' });
@@ -77,6 +76,7 @@ export default function ConnectionsPage() {
         limit_reached: 'Limite de bots Instagram atteinte pour votre plan.',
         server_error: 'Erreur serveur lors de la connexion Instagram.',
         missing_params: 'Paramètres manquants dans le callback Instagram.',
+        no_instagram_account: 'Aucun compte Instagram Pro/Business trouvé sur vos pages Facebook. Assurez-vous que votre page Facebook est liée à un compte Instagram Pro.',
       };
       toast({ title: 'Erreur Instagram', description: errorMessages[igError] ?? igError, variant: 'destructive' });
       window.history.replaceState({}, '', window.location.pathname);
@@ -528,5 +528,13 @@ export default function ConnectionsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ConnectionsPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-white/10 border-t-[#FF6B2C] rounded-full animate-spin" /></div>}>
+      <ConnectionsPageInner />
+    </Suspense>
   );
 }
