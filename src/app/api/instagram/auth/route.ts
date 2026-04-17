@@ -6,13 +6,10 @@ const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID ?? '';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '';
 const REDIRECT_URI = `${APP_URL}/api/instagram/callback`;
 
-// Scopes needed for Instagram DM bot via Facebook Login (Meta Graph API)
-// instagram_basic is deprecated — use Facebook Login dialog with these scopes
+// Instagram API with Instagram Login scopes (no Facebook Login required, no App Review)
 const SCOPES = [
-  'instagram_manage_messages',
-  'pages_manage_metadata',
-  'pages_show_list',
-  'pages_read_engagement',
+  'instagram_business_basic',
+  'instagram_business_manage_messages',
 ].join(',');
 
 export async function GET(req: NextRequest) {
@@ -33,8 +30,8 @@ export async function GET(req: NextRequest) {
     JSON.stringify({ userId: session.user.id, name, botName, businessName })
   ).toString('base64url');
 
-  // Use Facebook Login dialog (not the deprecated Instagram Basic Display API)
-  const oauthUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+  // Instagram API with Instagram Login — shows Instagram login page directly (username + password)
+  const oauthUrl = new URL('https://www.instagram.com/oauth/authorize');
   oauthUrl.searchParams.set('client_id', INSTAGRAM_APP_ID);
   oauthUrl.searchParams.set('redirect_uri', REDIRECT_URI);
   oauthUrl.searchParams.set('scope', SCOPES);

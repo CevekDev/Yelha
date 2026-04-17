@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // ── Step 1: Exchange code for short-lived Facebook User Access Token ──
-    const tokenRes = await fetch('https://graph.facebook.com/v19.0/oauth/access_token', {
+    // ── Step 1: Exchange code for short-lived token ────────────────────────
+    const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -53,57 +53,29 @@ export async function GET(req: NextRequest) {
 
     const tokenData = await tokenRes.json();
     const shortToken: string = tokenData.access_token;
+    const instagramUserId: string = String(tokenData.user_id);
 
-    // ── Step 2: Exchange for long-lived User Access Token (60 days) ───────
-    let userToken = shortToken;
+    // ── Step 2: Exchange for long-lived token (60 days) ───────────────────
+    let finalToken = shortToken;
     const longTokenRes = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${INSTAGRAM_APP_ID}&client_secret=${INSTAGRAM_APP_SECRET}&access_token=${shortToken}`
+      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_id=${INSTAGRAM_APP_ID}&client_secret=${INSTAGRAM_APP_SECRET}&access_token=${shortToken}`
     );
     if (longTokenRes.ok) {
       const longData = await longTokenRes.json();
-      if (longData.access_token) userToken = longData.access_token;
+      if (longData.access_token) finalToken = longData.access_token;
     }
 
-    // ── Step 3: Get Facebook Pages → Instagram Business Account ──────────
-    // The Messaging API requires a Page Access Token bound to the IG account
-    let instagramUserId = '';
+    // ── Step 3: Fetch Instagram username ──────────────────────────────────
     let instagramUsername = '';
-    let finalToken = userToken;
-
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?access_token=${userToken}`
-    );
-    if (pagesRes.ok) {
-      const pagesData = await pagesRes.json();
-      const pages: Array<{ id: string; access_token: string }> = pagesData.data ?? [];
-
-      for (const page of pages) {
-        const igRes = await fetch(
-          `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`
-        );
-        if (!igRes.ok) continue;
-        const igData = await igRes.json();
-        const igAccountId: string | undefined = igData.instagram_business_account?.id;
-        if (!igAccountId) continue;
-
-        instagramUserId = igAccountId;
-        finalToken = page.access_token; // Page token is used for Messaging API
-
-        const meRes = await fetch(
-          `https://graph.facebook.com/v19.0/${igAccountId}?fields=username,name&access_token=${page.access_token}`
-        );
-        if (meRes.ok) {
-          const me = await meRes.json();
-          instagramUsername = me.username ?? '';
-        }
-        break;
+    try {
+      const meRes = await fetch(
+        `https://graph.instagram.com/me?fields=username&access_token=${finalToken}`
+      );
+      if (meRes.ok) {
+        const me = await meRes.json();
+        instagramUsername = me.username ?? '';
       }
-    }
-
-    if (!instagramUserId) {
-      console.error('[Instagram OAuth] No Instagram Business Account found on any connected page');
-      return NextResponse.redirect(`${APP_URL}/fr/dashboard/connections?ig_error=no_instagram_account`);
-    }
+    } catch {}
 
     // ── Step 4: Check plan limits ─────────────────────────────────────────
     const BOT_LIMITS: Record<string, number> = { FREE: 1, STARTER: 1, BUSINESS: 3, PRO: 5, AGENCY: Infinity };
