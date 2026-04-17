@@ -29,11 +29,11 @@ export function DashboardNavbar({ onMenuClick }: DashboardNavbarProps) {
   }, []);
 
   return (
-    <header className="h-14 lg:h-16 border-b border-gray-200 dark:border-white/[0.06] bg-white dark:bg-[#0D0D10] flex items-center px-4 gap-3 justify-between lg:justify-end flex-shrink-0">
+    <header className="h-14 lg:h-16 border-b border-white/[0.06] bg-[#0D0D10] flex items-center px-4 gap-3 justify-between lg:justify-end flex-shrink-0">
       {/* Mobile hamburger */}
       <button
         onClick={onMenuClick}
-        className="lg:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.07] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white transition-colors"
+        className="lg:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.07] text-white/50 hover:text-white transition-colors"
         aria-label="Ouvrir le menu"
       >
         <Menu className="w-4 h-4" />
@@ -49,12 +49,12 @@ export function DashboardNavbar({ onMenuClick }: DashboardNavbarProps) {
       {/* Right side */}
       <div className="flex items-center gap-2 lg:gap-4">
         {/* Token balance */}
-        <div className="flex items-center gap-1.5 lg:gap-2 bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.07] rounded-xl px-2.5 lg:px-3.5 py-2">
+        <div className="flex items-center gap-1.5 lg:gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-2.5 lg:px-3.5 py-2">
           <Coins className="w-3.5 h-3.5 lg:w-4 lg:h-4" style={{ color: ORANGE }} />
-          <span className="font-mono text-xs lg:text-sm font-semibold text-gray-900 dark:text-white">
+          <span className="font-mono text-xs lg:text-sm font-semibold text-white">
             {unlimited ? '∞' : (balance !== null ? balance.toLocaleString() : '...')}
           </span>
-          <span className="text-gray-400 dark:text-white/30 text-xs font-mono hidden sm:inline">tokens</span>
+          <span className="text-white/30 text-xs font-mono hidden sm:inline">tokens</span>
         </div>
 
         {/* Buy tokens */}
@@ -71,12 +71,11 @@ export function DashboardNavbar({ onMenuClick }: DashboardNavbarProps) {
 
         <a
           href="mailto:cvkdev@outlook.fr?subject=Feedback%20YelhaDms"
-          className="hidden sm:flex items-center gap-1.5 font-mono text-xs text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70 transition-colors px-3 py-2 rounded-xl border border-gray-200 dark:border-white/[0.06] hover:border-gray-300 dark:hover:border-white/15"
+          className="hidden sm:flex items-center gap-1.5 font-mono text-xs text-white/40 hover:text-white/70 transition-colors px-3 py-2 rounded-xl border border-white/[0.06] hover:border-white/15"
           title="Suggestion ou bug ?"
         >
           💡 Help Us
         </a>
-        <ThemeToggle className="hidden sm:flex" />
         <div className="hidden sm:block">
           <LanguageSwitcher />
         </div>
