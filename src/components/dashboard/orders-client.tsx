@@ -55,8 +55,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
 
   const STATUS_TRANSITIONS: Record<string, { next: string; label: string; color: string }[]> = {
     PENDING: [
-      { next: 'CONFIRMED', label: t('actions.confirm'), color: '#3B82F6' },
-      { next: 'CANCELLED', label: t('actions.cancel'),  color: '#EF4444' },
+      { next: 'CANCELLED', label: t('actions.cancel'), color: '#EF4444' },
     ],
     CONFIRMED: [
       { next: 'SHIPPED',   label: t('actions.ship'),   color: ORANGE },

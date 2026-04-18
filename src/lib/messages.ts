@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/prisma';
 
-/** Nombre max de messages conservés par conversation */
-const MAX_MESSAGES = 30;
+/** Nombre max de messages conservés par conversation (hard cap) */
+const MAX_MESSAGES = 300;
 
-/** Nombre de messages d'historique passés à l'IA */
-const HISTORY_MESSAGES = 20;
+/** Inactivité après laquelle on efface l'historique (3 jours) */
+const INACTIVITY_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** Score spam à partir duquel on flag la conversation */
 const SPAM_THRESHOLD = 3;
@@ -99,8 +99,12 @@ export function buildContactContextString(ctx: {
   if (ctx.contactName) lines.push(`- Prénom/Nom client : ${ctx.contactName}`);
   if (ctx.wilaya) lines.push(`- Wilaya : ${ctx.wilaya}`);
   if (ctx.notes) lines.push(`- Notes : ${ctx.notes}`);
+  // Inject metadata but exclude internal bot state keys
+  const SKIP_KEYS = new Set(['ecotrackState', 'profilePhotoUrl', 'lastPhotoFetch', 'telegramUsername']);
   if (ctx.metadata && Object.keys(ctx.metadata).length > 0) {
-    for (const [k, v] of Object.entries(ctx.metadata)) {
+    for (const [k, v] of Object.entries(ctx.metadata as Record<string, unknown>)) {
+      if (SKIP_KEYS.has(k) || v === null || v === undefined) continue;
+      if (typeof v === 'object') continue; // skip nested objects
       lines.push(`- ${k} : ${v}`);
     }
   }
@@ -109,27 +113,37 @@ export function buildContactContextString(ctx: {
 }
 
 /**
- * Récupère les N derniers messages d'une conversation pour l'historique IA.
- * S'arrête au dernier marqueur [SETTINGS_RESET] pour garantir que les
- * nouveaux réglages prennent effet immédiatement.
+ * Récupère TOUS les messages de la session en cours (depuis dernier reset ou 3j).
+ * Si le client était inactif 3+ jours → efface l'historique et repart à zéro.
  */
 export async function getRecentHistory(
   conversationId: string
 ): Promise<{ role: 'user' | 'assistant'; content: string }[]> {
-  const messages = await prisma.message.findMany({
+  // Lazy cleanup: if last message was 3+ days ago, wipe the history
+  const lastMsg = await prisma.message.findFirst({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
-    take: HISTORY_MESSAGES,
+    select: { createdAt: true },
+  });
+
+  if (lastMsg && Date.now() - lastMsg.createdAt.getTime() > INACTIVITY_MS) {
+    await prisma.message.deleteMany({ where: { conversationId } });
+    return [];
+  }
+
+  // Fetch all messages (hard cap via MAX_MESSAGES on insert side)
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'asc' },
     select: { direction: true, content: true, type: true },
   });
 
-  // Stop at the most recent settings_reset marker (newest-first scan)
-  const cutIdx = messages.findIndex((m) => m.type === 'settings_reset');
-  const relevant = cutIdx === -1 ? messages : messages.slice(0, cutIdx);
+  // Find last settings_reset marker and only keep what's after it
+  const lastReset = [...messages].reverse().findIndex((m) => m.type === 'settings_reset');
+  const relevant = lastReset === -1 ? messages : messages.slice(messages.length - lastReset);
 
   return relevant
     .filter((m) => m.direction === 'inbound' || m.direction === 'outbound')
-    .reverse()
     .map((m) => ({
       role: m.direction === 'inbound' ? 'user' : 'assistant',
       content: m.content,

@@ -668,6 +668,11 @@ async function saveOrderFromBot(connection: any, contactId: string, contactName:
   const fullName = [data.prenom, data.nom].filter(Boolean).join(' ') || contactName || 'Client';
   const notes = `Wilaya: ${data.wilaya || ''} — Commune: ${data.commune || ''}`;
 
+  const autoConfirmDelay = (connection.autoConfirmDelay ?? 0) as number;
+  const scheduledConfirmAt = autoConfirmDelay > 0
+    ? new Date(Date.now() + autoConfirmDelay * 60 * 60 * 1000)
+    : null;
+
   const order = await prisma.order.create({
     data: {
       userId: connection.userId,
@@ -677,6 +682,7 @@ async function saveOrderFromBot(connection: any, contactId: string, contactName:
       contactPhone: data.telephone || null,
       totalAmount: total,
       notes,
+      ...(scheduledConfirmAt ? { scheduledConfirmAt } : {}),
       items: {
         create: items.map((i: any) => ({
           name: i.name,
@@ -688,7 +694,7 @@ async function saveOrderFromBot(connection: any, contactId: string, contactName:
     },
   });
 
-  console.log(`[Telegram] Order saved: ${order.id} for ${fullName}`);
+  console.log(`[Telegram] Order saved: ${order.id} for ${fullName}${scheduledConfirmAt ? ` — auto-confirm at ${scheduledConfirmAt.toISOString()}` : ''}`);
   return order.id;
 }
 

@@ -36,8 +36,9 @@ export default function ConnectionConfigPage() {
   const [newResponse, setNewResponse] = useState('');
   const [addingMsg, setAddingMsg] = useState(false);
 
-  // Delivery fee
+  // Delivery fee + auto-confirm
   const [deliveryFee, setDeliveryFee] = useState(0);
+  const [autoConfirmDelay, setAutoConfirmDelay] = useState(0);
 
   // Ecotrack
   const [ecotrackUrl, setEcotrackUrl] = useState('');
@@ -54,6 +55,7 @@ export default function ConnectionConfigPage() {
     setConnection(data);
     setForm({ name: data.name, businessName: data.businessName || '', botName: data.botName || 'Assistant', customInstructions: data.customInstructions || '', welcomeMessage: data.welcomeMessage || '', awayMessage: data.awayMessage || '', botPersonality: data.botPersonality || { formality: 5, friendliness: 5, responseLength: 5, emojiUsage: 3 }, isActive: data.isActive });
     setDeliveryFee(data.deliveryFee ?? 0);
+    setAutoConfirmDelay(data.autoConfirmDelay ?? 0);
     setPredefinedMessages(data.predefinedMessages || []);
     // Fetch Ecotrack config
     const eco = await fetch(`/api/connections/${id}/ecotrack`).then(r => r.json()).catch(() => ({}));
@@ -66,7 +68,7 @@ export default function ConnectionConfigPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/connections/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, deliveryFee }) });
+      const res = await fetch(`/api/connections/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, deliveryFee, autoConfirmDelay }) });
       if (res.ok) toast({ title: tCommon('success'), description: 'Configuration saved!' });
       else toast({ title: tCommon('error'), variant: 'destructive' });
     } finally { setSaving(false); }
@@ -162,6 +164,16 @@ export default function ConnectionConfigPage() {
           <div>
             <Label>Frais de livraison (DA) <span className="text-xs text-muted-foreground">— affiché au client dans le récapitulatif</span></Label>
             <Input type="number" min={0} value={deliveryFee} onChange={e => setDeliveryFee(Number(e.target.value))} placeholder="0" className="mt-1 max-w-[160px]" />
+          </div>
+          <div>
+            <Label>Confirmation automatique après <span className="text-xs text-muted-foreground">— heures après la commande (0 = désactivé)</span></Label>
+            <div className="flex items-center gap-2 mt-1">
+              <Input type="number" min={0} max={8760} value={autoConfirmDelay} onChange={e => setAutoConfirmDelay(Number(e.target.value))} placeholder="0" className="max-w-[120px]" />
+              <span className="text-sm text-muted-foreground">heures</span>
+            </div>
+            {autoConfirmDelay > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">Le bot enverra automatiquement un message de confirmation à chaque nouveau client {autoConfirmDelay}h après la commande.</p>
+            )}
           </div>
         </CardContent>
       </Card>

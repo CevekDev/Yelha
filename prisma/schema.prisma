@@ -197,6 +197,7 @@ model Connection {
   ecotrackUrl          String?
   ecotrackToken        String?   @db.Text  // AES-256-GCM encrypted
   ecotrackAutoShip     Boolean   @default(false)
+  autoConfirmDelay     Int?      @default(0)  // heures avant envoi auto confirmation (0 = désactivé)
   deliveryFee          Float?    @default(0) // frais de livraison DA
 
   // Business hours
