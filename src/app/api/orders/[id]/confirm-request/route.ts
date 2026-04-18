@@ -46,6 +46,7 @@ export async function POST(
       (order.contactName ? `👤 Nom : ${order.contactName}\n` : '') +
       (order.contactPhone ? `📞 Téléphone : ${order.contactPhone}\n` : '') +
       (order.notes ? `📍 Adresse : ${order.notes}\n` : '') +
+      ((order as any).ecotrackTracking ? `📦 Tracking : <b>${(order as any).ecotrackTracking}</b>\n` : '') +
       `\n` +
       (order.totalAmount ? `💰 Total : <b>${order.totalAmount.toLocaleString('fr-DZ')} DA</b>\n\n` : '') +
       `Veuillez confirmer que ces informations sont correctes en répondant <b>OUI</b> ou signalez une correction.`;

@@ -118,6 +118,11 @@ export async function POST(
     };
   }
 
+  // ── Ecotrack connection fields (used in multiple blocks below) ──────────────
+  const ecoRawToken = (connection as any).ecotrackToken as string | null;
+  const ecoUrl = (connection as any).ecotrackUrl as string | null;
+  const ecoEnabled = !!(ecoRawToken && ecoUrl);
+
   // Handle /start command
   if (text === '/start') {
     if (connection.welcomeMessage) {
@@ -129,12 +134,24 @@ export async function POST(
   }
 
   // ── Confirmation reply detection ─────────────────────────────────────────
+  // Skip if contact is in the middle of an Ecotrack delivery-type dialog
   if (text) {
     const lower = text.toLowerCase().trim();
     const isYes = /^(oui|yes|confirme|confirm|ok|d'accord|dacord|yep|ouii|ouiii|ouais|yep|correct|exact|c'est bon|cest bon|c bon|je confirme|valide|validé|accepte|j'accepte)/.test(lower);
     const isNo  = /^(non|no|annule|cancel|annuler|pas bon|faux|incorrect|je refuse|refuse|nope|nan|naan)/.test(lower);
 
     if (isYes || isNo) {
+      // If Ecotrack is enabled and contact is mid-delivery-dialog, skip confirmation handler
+      let skipConfirmation = false;
+      if (ecoEnabled) {
+        const ctxEco = await prisma.contactContext.findUnique({
+          where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+          select: { metadata: true },
+        });
+        skipConfirmation = !!(ctxEco?.metadata as any)?.ecotrackState;
+      }
+
+      if (!skipConfirmation) {
       const pendingOrder = await prisma.order.findFirst({
         where: {
           connectionId: connection.id,
@@ -151,14 +168,12 @@ export async function POST(
 
         if (isYes) {
           // Auto-ship via Ecotrack if enabled and order has a tracking code
-          const connEcoToken = (connection as any).ecotrackToken as string | null;
-          const connEcoUrl = (connection as any).ecotrackUrl as string | null;
           const autoShip = (connection as any).ecotrackAutoShip as boolean;
 
-          if (autoShip && connEcoToken && connEcoUrl && pendingOrder.ecotrackTracking) {
+          if (autoShip && ecoEnabled && pendingOrder.ecotrackTracking) {
             try {
               const { shipEcotrackOrder } = await import('@/lib/ecotrack');
-              const shipped = await shipEcotrackOrder(connEcoUrl, decrypt(connEcoToken), pendingOrder.ecotrackTracking);
+              const shipped = await shipEcotrackOrder(ecoUrl!, decrypt(ecoRawToken!), pendingOrder.ecotrackTracking);
               if (shipped) {
                 newStatus = 'SHIPPED';
                 replyMsg = `✅ Commande *#${pendingOrder.id.slice(-6).toUpperCase()}* confirmée et *expédiée* ! 🚚\n📦 Tracking : *${pendingOrder.ecotrackTracking}*\n\nMerci pour votre confiance ! 🎉`;
@@ -174,15 +189,11 @@ export async function POST(
         } else {
           replyMsg = `❌ Votre commande *#${pendingOrder.id.slice(-6).toUpperCase()}* a été *annulée*. N'hésitez pas à nous recontacter si vous changez d'avis.`;
           // Remove from Ecotrack if tracking exists
-          if (pendingOrder.ecotrackTracking) {
-            const connEcoToken = (connection as any).ecotrackToken as string | null;
-            const connEcoUrl = (connection as any).ecotrackUrl as string | null;
-            if (connEcoToken && connEcoUrl) {
-              try {
-                const { deleteEcotrackOrder } = await import('@/lib/ecotrack');
-                await deleteEcotrackOrder(connEcoUrl, decrypt(connEcoToken), pendingOrder.ecotrackTracking);
-              } catch (e) { console.error('[Ecotrack] Delete order error', e); }
-            }
+          if (pendingOrder.ecotrackTracking && ecoEnabled) {
+            try {
+              const { deleteEcotrackOrder } = await import('@/lib/ecotrack');
+              await deleteEcotrackOrder(ecoUrl!, decrypt(ecoRawToken!), pendingOrder.ecotrackTracking);
+            } catch (e) { console.error('[Ecotrack] Delete order error', e); }
           }
         }
 
@@ -195,6 +206,7 @@ export async function POST(
 
         return NextResponse.json({ ok: true });
       }
+      } // end if (!skipConfirmation)
     }
   }
 
@@ -264,10 +276,6 @@ export async function POST(
   }
 
   // ── Ecotrack state machine (intercepts text messages mid-order flow) ────────
-  const ecoRawToken = (connection as any).ecotrackToken as string | null;
-  const ecoUrl = (connection as any).ecotrackUrl as string | null;
-  const ecoEnabled = !!(ecoRawToken && ecoUrl);
-
   if (ecoEnabled && messageType === 'text' && text) {
     const ctxForEco = await prisma.contactContext.findUnique({
       where: { connectionId_contactId: { connectionId: connection.id, contactId } },
@@ -346,7 +354,25 @@ export async function POST(
         });
         if (latestOrder) {
           await prisma.order.update({ where: { id: latestOrder.id }, data: { status: 'CANCELLED' } });
-          console.log(`[Telegram] Order cancelled: ${latestOrder.id}`);
+          // Delete from Ecotrack if tracking exists
+          if (latestOrder.ecotrackTracking && ecoEnabled) {
+            try {
+              const { deleteEcotrackOrder } = await import('@/lib/ecotrack');
+              await deleteEcotrackOrder(ecoUrl!, decrypt(ecoRawToken!), latestOrder.ecotrackTracking);
+            } catch (e) { console.error('[Ecotrack] Delete on annulation error', e); }
+          }
+        }
+        // Clear any active Ecotrack state for this contact
+        if (ecoEnabled) {
+          const ctxCancel = await prisma.contactContext.findUnique({
+            where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+            select: { metadata: true },
+          });
+          if ((ctxCancel?.metadata as any)?.ecotrackState) {
+            const clearedMeta = { ...(ctxCancel!.metadata as Record<string, any>) };
+            delete clearedMeta.ecotrackState;
+            await upsertContactContext(connection.id, contactId, { contactName, metadata: clearedMeta });
+          }
         }
       } catch (e) {
         console.error('[Telegram] Order cancellation error', e);
