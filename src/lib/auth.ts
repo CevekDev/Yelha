@@ -14,11 +14,26 @@ const loginSchema = z.object({
   autoLoginToken: z.string().optional(),
 });
 
+const isProd = process.env.NODE_ENV === 'production';
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60,
+  },
+  // Explicit cookie config — fixes mobile Safari + cross-browser session issues
+  useSecureCookies: isProd,
+  cookies: {
+    sessionToken: {
+      name: isProd ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',   // 'lax' works with mobile redirects; 'strict' blocks them
+        path: '/',
+        secure: isProd,
+      },
+    },
   },
   pages: {
     signIn: '/auth/signin',

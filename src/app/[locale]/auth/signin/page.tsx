@@ -73,8 +73,8 @@ export default function SignInPage() {
           variant: 'destructive',
         });
       } else {
-        router.push(`/${locale}/dashboard`);
-        router.refresh();
+        // Full page navigation ensures session cookie is read correctly on mobile
+        window.location.href = `/${locale}/dashboard`;
       }
     } finally {
       setLoading(false);

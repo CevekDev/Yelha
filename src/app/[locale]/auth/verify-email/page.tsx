@@ -82,10 +82,9 @@ export default function VerifyEmailPage() {
           redirect: false,
         });
         if (result?.ok) {
-          router.push(`/${locale}/dashboard`);
+          window.location.href = `/${locale}/dashboard`;
         } else {
-          // Fallback to signin page if auto-login fails
-          router.push(`/${locale}/auth/signin`);
+          window.location.href = `/${locale}/auth/signin`;
         }
       } else {
         const data = await res.json();

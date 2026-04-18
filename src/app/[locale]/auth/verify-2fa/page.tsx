@@ -54,9 +54,9 @@ export default function VerifyTwoFactorPage() {
           callbackUrl,
         });
         if (result?.ok) {
-          router.push(callbackUrl);
+          window.location.href = callbackUrl;
         } else {
-          router.push(`/${locale}/dashboard`);
+          window.location.href = `/${locale}/dashboard`;
         }
       } else {
         setError(data.error || 'Code invalide');
