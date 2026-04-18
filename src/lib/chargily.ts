@@ -47,9 +47,6 @@ export async function createChargilyCheckout(params: {
     body.payment_method = params.paymentMethod;
   }
 
-  console.log('[Chargily] Using API URL:', apiUrl);
-  console.log('[Chargily] Creating checkout for amount:', params.amount, 'DZD');
-
   const res = await fetch(`${apiUrl}/checkouts`, {
     method: 'POST',
     headers: {
@@ -66,7 +63,6 @@ export async function createChargilyCheckout(params: {
   }
 
   const data = await res.json();
-  console.log('[Chargily] checkout created:', data.id, data.checkout_url);
 
   return {
     id: data.id,
