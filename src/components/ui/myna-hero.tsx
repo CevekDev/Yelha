@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LazyMotion, domAnimation, m } from 'framer-motion';
+import { LazyMotion, domAnimation, m, type Variants } from 'framer-motion';
 import Link from 'next/link';
 import { Menu, Bot, Send, Globe, Mic } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -25,13 +25,13 @@ export function MynaHero({ locale }: MynaHeroProps) {
     t('hero.title3'),
   ];
 
-  const titleContainer = {
+  const titleContainer: Variants = {
     hidden: {},
     show: { transition: { staggerChildren: 0.13, delayChildren: 0.35 } },
   };
-  const wordAnim = {
+  const wordAnim: Variants = {
     hidden: { opacity: 0, y: 28, filter: 'blur(8px)' },
-    show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.45, ease: 'easeOut' } },
+    show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.45, ease: [0.25, 0.1, 0.25, 1] } },
   };
 
   const featureCards = [
