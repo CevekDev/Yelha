@@ -104,7 +104,7 @@ function ConnectionsPageInner() {
   const [igForm, setIgForm] = useState({ name: '', botName: 'Assistant', instagramUsername: '', instagramPassword: '' });
 
   // WhatsApp form
-  const [waForm, setWaForm] = useState({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAccessToken: '', whatsappVerifyToken: '' });
+  const [waForm, setWaForm] = useState({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAppId: '', whatsappAppSecret: '', whatsappVerifyToken: '' });
   const [waResult, setWaResult] = useState<{ id: string; webhookUrl: string; verifyToken: string } | null>(null);
 
   // Messenger form
@@ -222,7 +222,7 @@ function ConnectionsPageInner() {
   };
 
   const handleAddWhatsApp = async () => {
-    if (!waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAccessToken || !waForm.whatsappVerifyToken) return;
+    if (!waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAppId || !waForm.whatsappAppSecret || !waForm.whatsappVerifyToken) return;
     setAdding(true);
     try {
       const res = await fetch('/api/connections', {
@@ -238,7 +238,7 @@ function ConnectionsPageInner() {
           webhookUrl: `${baseUrl}/api/webhooks/whatsapp/${json.id}`,
           verifyToken: waForm.whatsappVerifyToken,
         });
-        setWaForm({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAccessToken: '', whatsappVerifyToken: '' });
+        setWaForm({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAppId: '', whatsappAppSecret: '', whatsappVerifyToken: '' });
         setShowAdd(false);
         fetchConnections();
       } else {
@@ -454,8 +454,8 @@ function ConnectionsPageInner() {
                         { n: '1', text: 'Allez sur developers.facebook.com → "Mes applications" → "Créer une application"' },
                         { n: '2', text: 'Choisissez le type "Entreprise" et donnez un nom à votre app' },
                         { n: '3', text: 'Dans le tableau de bord, ajoutez le produit "WhatsApp"' },
-                        { n: '4', text: 'Dans WhatsApp → Configuration, notez le "Phone Number ID" et l\'Access Token temporaire' },
-                        { n: '5', text: 'Pour un token permanent : Créez un utilisateur système dans Business Manager → Paramètres → Utilisateurs système → Générer un token' },
+                        { n: '4', text: 'Dans WhatsApp → Configuration API, notez le "Phone Number ID"' },
+                        { n: '5', text: 'Dans Paramètres → Général de votre app, copiez l\'Identifiant de l\'app (App ID) et la Clé secrète (App Secret)' },
                         { n: '6', text: 'Dans WhatsApp → Configuration → Webhooks, collez votre Webhook URL et Verify Token après connexion ici' },
                         { n: '7', text: 'Abonnez-vous à l\'événement "messages" dans les webhooks' },
                       ].map(step => (
@@ -482,12 +482,16 @@ function ConnectionsPageInner() {
                   <input className={INPUT_CLASS} value={waForm.botName} onChange={e => setWaForm(f => ({ ...f, botName: e.target.value }))} placeholder="Assistant" />
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Phone Number ID <span className="text-white/20">(Meta Dashboard → WhatsApp → Config)</span></label>
+                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Phone Number ID <span className="text-white/20">(WhatsApp → Configuration API)</span></label>
                   <input className={INPUT_CLASS} value={waForm.whatsappPhoneNumberId} onChange={e => setWaForm(f => ({ ...f, whatsappPhoneNumberId: e.target.value }))} placeholder="123456789012345" />
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Access Token <span className="text-white/20">(permanent, depuis Business Manager)</span></label>
-                  <input className={INPUT_CLASS} type="password" value={waForm.whatsappAccessToken} onChange={e => setWaForm(f => ({ ...f, whatsappAccessToken: e.target.value }))} placeholder="EAAxxxxx..." />
+                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Identifiant de l&apos;app <span className="text-white/20">(Paramètres → Général)</span></label>
+                  <input className={INPUT_CLASS} value={waForm.whatsappAppId} onChange={e => setWaForm(f => ({ ...f, whatsappAppId: e.target.value }))} placeholder="1234567890123456" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Clé secrète de l&apos;app <span className="text-white/20">(Paramètres → Général → Afficher)</span></label>
+                  <input className={INPUT_CLASS} type="password" value={waForm.whatsappAppSecret} onChange={e => setWaForm(f => ({ ...f, whatsappAppSecret: e.target.value }))} placeholder="••••••••••••••••••••••••••••••••" />
                 </div>
                 <div>
                   <label className="text-xs text-white/40 font-mono mb-1.5 block">Verify Token <span className="text-white/20">(choisissez un mot de passe quelconque)</span></label>
@@ -496,7 +500,7 @@ function ConnectionsPageInner() {
                 </div>
               </div>
               <div className="flex gap-2 mt-5">
-                <button onClick={handleAddWhatsApp} disabled={adding || !waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAccessToken || !waForm.whatsappVerifyToken} className="flex items-center gap-2 font-mono text-sm text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 disabled:opacity-40" style={{ background: ORANGE }}>
+                <button onClick={handleAddWhatsApp} disabled={adding || !waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAppId || !waForm.whatsappAppSecret || !waForm.whatsappVerifyToken} className="flex items-center gap-2 font-mono text-sm text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 disabled:opacity-40" style={{ background: ORANGE }}>
                   {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
                   Connecter WhatsApp
                 </button>
