@@ -67,3 +67,121 @@ html {
 [dir="rtl"] {
   font-family: 'Cairo', sans-serif;
 }
+
+/* ── Dashboard theme variables ───────────────────────────────────────────── */
+
+[data-dash-theme="dark"] {
+  --dt-bg:        #080810;
+  --dt-surface:   #0D0D10;
+  --dt-card:      rgba(255,255,255,0.02);
+  --dt-hover:     rgba(255,255,255,0.04);
+  --dt-border:    rgba(255,255,255,0.06);
+  --dt-border-2:  rgba(255,255,255,0.08);
+  --dt-text:      #ffffff;
+  --dt-text-80:   rgba(255,255,255,0.80);
+  --dt-text-60:   rgba(255,255,255,0.60);
+  --dt-text-50:   rgba(255,255,255,0.50);
+  --dt-text-40:   rgba(255,255,255,0.40);
+  --dt-text-30:   rgba(255,255,255,0.30);
+  --dt-text-20:   rgba(255,255,255,0.20);
+  --dt-text-10:   rgba(255,255,255,0.10);
+}
+
+[data-dash-theme="light"] {
+  --dt-bg:        #f1f5f9;
+  --dt-surface:   #ffffff;
+  --dt-card:      rgba(15,23,42,0.02);
+  --dt-hover:     rgba(15,23,42,0.04);
+  --dt-border:    rgba(15,23,42,0.07);
+  --dt-border-2:  rgba(15,23,42,0.10);
+  --dt-text:      #0f172a;
+  --dt-text-80:   rgba(15,23,42,0.80);
+  --dt-text-60:   rgba(15,23,42,0.65);
+  --dt-text-50:   rgba(15,23,42,0.55);
+  --dt-text-40:   rgba(15,23,42,0.45);
+  --dt-text-30:   rgba(15,23,42,0.35);
+  --dt-text-20:   rgba(15,23,42,0.25);
+  --dt-text-10:   rgba(15,23,42,0.12);
+}
+
+[data-dash-theme="colorful"] {
+  --dt-bg:        #eef2ff;
+  --dt-surface:   #f5f3ff;
+  --dt-card:      rgba(99,102,241,0.05);
+  --dt-hover:     rgba(99,102,241,0.09);
+  --dt-border:    rgba(99,102,241,0.13);
+  --dt-border-2:  rgba(99,102,241,0.20);
+  --dt-text:      #1e1b4b;
+  --dt-text-80:   rgba(30,27,75,0.85);
+  --dt-text-60:   rgba(30,27,75,0.70);
+  --dt-text-50:   rgba(30,27,75,0.60);
+  --dt-text-40:   rgba(30,27,75,0.50);
+  --dt-text-30:   rgba(30,27,75,0.40);
+  --dt-text-20:   rgba(30,27,75,0.30);
+  --dt-text-10:   rgba(30,27,75,0.15);
+}
+
+/* ── Dashboard content area — override white Tailwind utilities ───────────── */
+
+[data-dash-theme="light"] .dash-main,
+[data-dash-theme="colorful"] .dash-main {
+  color: var(--dt-text);
+  background: var(--dt-bg);
+}
+
+/* text-white/X → dark text */
+[data-dash-theme="light"] .dash-main [class*="text-white"],
+[data-dash-theme="colorful"] .dash-main [class*="text-white"] {
+  color: var(--dt-text) !important;
+}
+
+/* bg-white/X → subtle tinted bg (only slash-opacity variants) */
+[data-dash-theme="light"] .dash-main [class*="bg-white/"],
+[data-dash-theme="colorful"] .dash-main [class*="bg-white/"] {
+  background-color: var(--dt-card) !important;
+}
+
+/* border-white/X → themed border */
+[data-dash-theme="light"] .dash-main [class*="border-white/"],
+[data-dash-theme="colorful"] .dash-main [class*="border-white/"] {
+  border-color: var(--dt-border-2) !important;
+}
+
+/* placeholder */
+[data-dash-theme="light"] .dash-main [class*="placeholder-white"]::placeholder,
+[data-dash-theme="colorful"] .dash-main [class*="placeholder-white"]::placeholder {
+  color: var(--dt-text-30) !important;
+}
+
+/* inputs */
+[data-dash-theme="light"] .dash-main input:not([type="file"]),
+[data-dash-theme="light"] .dash-main textarea,
+[data-dash-theme="light"] .dash-main select,
+[data-dash-theme="colorful"] .dash-main input:not([type="file"]),
+[data-dash-theme="colorful"] .dash-main textarea,
+[data-dash-theme="colorful"] .dash-main select {
+  color: var(--dt-text) !important;
+}
+
+/* keep green / red / orange accent colors untouched */
+[data-dash-theme="light"] .dash-main [class*="text-green-"],
+[data-dash-theme="light"] .dash-main [class*="text-red-"],
+[data-dash-theme="light"] .dash-main [class*="text-orange-"],
+[data-dash-theme="colorful"] .dash-main [class*="text-green-"],
+[data-dash-theme="colorful"] .dash-main [class*="text-red-"],
+[data-dash-theme="colorful"] .dash-main [class*="text-orange-"] {
+  color: revert !important;
+}
+
+[data-dash-theme="light"] .dash-main [class*="bg-green-"],
+[data-dash-theme="light"] .dash-main [class*="bg-red-"],
+[data-dash-theme="colorful"] .dash-main [class*="bg-green-"],
+[data-dash-theme="colorful"] .dash-main [class*="bg-red-"] {
+  background-color: revert !important;
+}
+
+/* table rows / dividers */
+[data-dash-theme="light"] .dash-main [class*="divide-white/"],
+[data-dash-theme="colorful"] .dash-main [class*="divide-white/"] {
+  border-color: var(--dt-border) !important;
+}

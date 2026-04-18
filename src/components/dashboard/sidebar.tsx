@@ -16,7 +16,17 @@ const ORANGE = '#FF6B2C';
 
 const PLAN_RANK: Record<string, number> = { FREE: 0, STARTER: 1, BUSINESS: 2, PRO: 3, AGENCY: 4 };
 
-export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void; planLevel?: string } = {}) {
+type DashTheme = 'dark' | 'light' | 'colorful';
+
+export function Sidebar({
+  onClose,
+  planLevel = 'FREE',
+  dashTheme = 'dark',
+}: {
+  onClose?: () => void;
+  planLevel?: string;
+  dashTheme?: DashTheme;
+} = {}) {
   const t = useTranslations('dashboard');
   const tNav = useTranslations('nav');
   const pathname = usePathname();
@@ -66,11 +76,12 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
         <button
           key={item.href}
           onClick={() => setUpgradeModal({ plan: item.required!, feature: item.label })}
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all w-full text-white/20 hover:text-white/40 hover:bg-white/[0.03]"
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all w-full"
+          style={{ color: 'var(--dt-text-20)' }}
         >
-          <Icon className="w-4 h-4 flex-shrink-0 text-white/15" />
+          <Icon className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--dt-text-10)' }} />
           <span className="flex-1 text-left">{item.label}</span>
-          <Lock className="w-3 h-3 text-white/15 flex-shrink-0" />
+          <Lock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--dt-text-10)' }} />
         </button>
       );
     }
@@ -80,21 +91,22 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
         key={item.href}
         href={item.href}
         onClick={onClose}
-        className={cn(
-          'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all group',
+        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all group"
+        style={
           isActive
-            ? 'text-white'
-            : 'text-white/40 hover:text-white/80 hover:bg-white/[0.04]'
-        )}
-        style={isActive ? { background: `${ORANGE}20`, color: ORANGE } : {}}
+            ? { background: `${ORANGE}20`, color: ORANGE }
+            : { color: 'var(--dt-text-40)' }
+        }
+        onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = 'var(--dt-text-80)'; }}
+        onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = 'var(--dt-text-40)'; }}
       >
-        <Icon
-          className="w-4 h-4 flex-shrink-0"
-          style={isActive ? { color: ORANGE } : {}}
-        />
+        <Icon className="w-4 h-4 flex-shrink-0" style={isActive ? { color: ORANGE } : {}} />
         <span className="flex-1">{item.label}</span>
         {item.soon && (
-          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-white/[0.06] text-white/30 border border-white/10 leading-none">
+          <span
+            className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full leading-none"
+            style={{ background: 'var(--dt-hover)', color: 'var(--dt-text-30)', border: '1px solid var(--dt-border-2)' }}
+          >
             {t('soon')}
           </span>
         )}
@@ -106,7 +118,10 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
   };
 
   return (
-    <div className="flex h-full w-64 flex-col bg-[#0D0D10] border-r border-white/[0.06]">
+    <div
+      className="flex h-full w-64 flex-col transition-colors duration-300"
+      style={{ background: 'var(--dt-surface)', borderRight: '1px solid var(--dt-border)' }}
+    >
       {upgradeModal && (
         <UpgradeModal
           requiredPlan={upgradeModal.plan as any}
@@ -114,46 +129,43 @@ export function Sidebar({ onClose, planLevel = 'FREE' }: { onClose?: () => void;
           onClose={() => setUpgradeModal(null)}
         />
       )}
+
       {/* Logo */}
-      <div className="flex h-14 lg:h-16 items-center px-5 border-b border-white/[0.06] flex-shrink-0">
+      <div
+        className="flex h-14 lg:h-16 items-center px-5 flex-shrink-0"
+        style={{ borderBottom: '1px solid var(--dt-border)' }}
+      >
         <Link href={`/${locale}`} className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: ORANGE }}
-          >
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: ORANGE }}>
             <Bot className="w-5 h-5 text-white" />
           </div>
-          <span className="font-mono font-bold text-white text-lg">YelhaDms</span>
+          <span className="font-mono font-bold text-lg" style={{ color: 'var(--dt-text)' }}>YelhaDms</span>
         </Link>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {/* Main sections */}
-        <div className="space-y-0.5">
-          {mainNavItems.map(renderNavItem)}
-        </div>
-
-        {/* Separator */}
-        <div className="my-3 border-t border-white/[0.06]" />
-
-        {/* Secondary sections */}
-        <div className="space-y-0.5">
-          {secondaryNavItems.map(renderNavItem)}
-        </div>
+        <div className="space-y-0.5">{mainNavItems.map(renderNavItem)}</div>
+        <div className="my-3" style={{ borderTop: '1px solid var(--dt-border)' }} />
+        <div className="space-y-0.5">{secondaryNavItems.map(renderNavItem)}</div>
       </nav>
 
-      {/* User + signout */}
-      <div className="p-3 border-t border-white/[0.06] flex-shrink-0">
+      {/* User */}
+      <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid var(--dt-border)' }}>
         <div className="px-3 mb-2">
-          <p className="text-sm font-medium text-white/80 truncate">
+          <p className="text-sm font-medium truncate" style={{ color: 'var(--dt-text-80)' }}>
             {session?.user.name || 'Utilisateur'}
           </p>
-          <p className="text-xs text-white/30 truncate">{session?.user.email}</p>
+          <p className="text-xs truncate" style={{ color: 'var(--dt-text-30)' }}>
+            {session?.user.email}
+          </p>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: `/${locale}/auth/signin` })}
-          className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all"
+          className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm transition-all"
+          style={{ color: 'var(--dt-text-40)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--dt-text-70)'; (e.currentTarget as HTMLElement).style.background = 'var(--dt-hover)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--dt-text-40)'; (e.currentTarget as HTMLElement).style.background = ''; }}
         >
           <LogOut className="w-4 h-4 flex-shrink-0" />
           {tNav('signOut')}

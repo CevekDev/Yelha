@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LazyMotion, domAnimation, m, AnimatePresence } from 'framer-motion';
+import { LazyMotion, domAnimation, m } from 'framer-motion';
 import Link from 'next/link';
 import { Menu, Bot, Send, Globe, Mic } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -18,13 +18,21 @@ export function MynaHero({ locale }: MynaHeroProps) {
   const t = useTranslations();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [visibleWords, setVisibleWords] = useState<number[]>([]);
 
   const titleWords = [
     t('hero.title1'),
     t('hero.title2'),
     t('hero.title3'),
   ];
+
+  const titleContainer = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.13, delayChildren: 0.35 } },
+  };
+  const wordAnim = {
+    hidden: { opacity: 0, y: 28, filter: 'blur(8px)' },
+    show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.45, ease: 'easeOut' } },
+  };
 
   const featureCards = [
     { icon: Send,  label: t('features.telegram.title'), desc: t('hero.telegram'), color: '#0EA5E9' },
@@ -44,14 +52,6 @@ export function MynaHero({ locale }: MynaHeroProps) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    titleWords.forEach((_, i) => {
-      setTimeout(() => {
-        setVisibleWords(prev => [...prev, i]);
-      }, 120 * i + 400);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <LazyMotion features={domAnimation}>
@@ -178,24 +178,24 @@ export function MynaHero({ locale }: MynaHeroProps) {
           <span className="font-mono text-xs text-white/50">{t('hero.badge')}</span>
         </m.div>
 
-        {/* Title — word by word */}
-        <h1 className="font-mono text-5xl md:text-7xl font-bold text-center leading-[1.1] mb-6">
+        {/* Title — word by word via Framer Motion stagger */}
+        <m.h1
+          variants={titleContainer}
+          initial="hidden"
+          animate="show"
+          className="font-mono text-5xl md:text-7xl font-bold text-center leading-[1.1] mb-6"
+        >
           {titleWords.map((word, i) => (
-            <AnimatePresence key={i}>
-              {visibleWords.includes(i) && (
-                <m.span
-                  initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={{ duration: 0.5, ease: 'easeOut' }}
-                  className="inline-block mr-3"
-                  style={i === titleWords.length - 1 ? { color: ORANGE } : { color: 'white' }}
-                >
-                  {word}
-                </m.span>
-              )}
-            </AnimatePresence>
+            <m.span
+              key={i}
+              variants={wordAnim}
+              className="inline-block mr-3"
+              style={i === titleWords.length - 1 ? { color: ORANGE } : { color: 'white' }}
+            >
+              {word}
+            </m.span>
           ))}
-        </h1>
+        </m.h1>
 
         {/* Subtitle */}
         <m.p
