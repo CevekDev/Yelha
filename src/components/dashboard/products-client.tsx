@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Package, Plus, Search, Edit2, Trash2, Lock,
-  ShoppingBag, AlertCircle, X, Check, Tag,
+  ShoppingBag, AlertCircle, X, Check, Tag, Upload, FileText,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useFeatureGate } from './upgrade-modal';
@@ -107,9 +107,7 @@ export default function ProductsClient({
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
   const [importModal, setImportModal] = useState<'woocommerce' | 'shopify' | null>(null);
-  const [importUrl, setImportUrl] = useState('');
-  const [importKey, setImportKey] = useState('');
-  const [importSecret, setImportSecret] = useState('');
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState<{ imported: number; total: number; skipped: number } | null>(null);
@@ -133,41 +131,24 @@ export default function ProductsClient({
 
   const closeImportModal = () => {
     setImportModal(null);
-    setImportUrl('');
-    setImportKey('');
-    setImportSecret('');
+    setImportFile(null);
     setImportError('');
     setImportSuccess(null);
   };
 
   const handleImport = async () => {
-    if (!importUrl.trim()) { setImportError("L'URL de la boutique est requise"); return; }
-    if (!importKey.trim()) { setImportError('La clé API est requise'); return; }
-    if (importModal === 'woocommerce' && !importSecret.trim()) {
-      setImportError('Le Consumer Secret est requis');
-      return;
-    }
+    if (!importFile) { setImportError('Veuillez sélectionner un fichier CSV'); return; }
     setImportError('');
     setImportSuccess(null);
     setImporting(true);
     try {
-      const res = await fetch('/api/products/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: importModal,
-          url: importUrl.trim(),
-          key: importKey.trim(),
-          secret: importSecret.trim(),
-        }),
-      });
+      const fd = new FormData();
+      fd.append('platform', importModal!);
+      fd.append('file', importFile);
+      const res = await fetch('/api/products/import', { method: 'POST', body: fd });
       const data = await res.json().catch(() => ({ error: 'Réponse invalide du serveur' }));
-      if (!res.ok) {
-        setImportError(data.error || "Erreur lors de l'import");
-        return;
-      }
+      if (!res.ok) { setImportError(data.error || "Erreur lors de l'import"); return; }
       setImportSuccess(data);
-      // Refresh product list
       const updated = await fetch('/api/products').then(r => r.json()).catch(() => null);
       if (Array.isArray(updated)) setProducts(updated);
     } catch {
@@ -912,45 +893,55 @@ export default function ProductsClient({
               /* ── Form state ── */
               <>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block font-mono text-xs text-white/50 mb-1.5">
-                      {t('importStoreUrl')}
-                    </label>
+                  {/* Drop zone */}
+                  <label
+                    className={`flex flex-col items-center justify-center gap-3 w-full min-h-[160px] rounded-xl border-2 border-dashed transition-colors cursor-pointer ${
+                      importing ? 'opacity-50 cursor-not-allowed' :
+                      importFile ? 'border-orange-500/40 bg-orange-500/[0.04]' : 'border-white/[0.10] bg-white/[0.02] hover:border-white/20'
+                    }`}
+                  >
                     <input
-                      type="url"
-                      value={importUrl}
-                      onChange={(e) => { setImportUrl(e.target.value); setImportError(''); }}
-                      placeholder={importModal === 'woocommerce' ? 'https://maboutique.com' : 'maboutique.myshopify.com'}
+                      type="file"
+                      accept=".csv,text/csv"
                       disabled={importing}
-                      className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40 disabled:opacity-50"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setImportFile(f);
+                        setImportError('');
+                      }}
                     />
+                    {importFile ? (
+                      <>
+                        <FileText className="w-8 h-8" style={{ color: ORANGE }} />
+                        <div className="text-center">
+                          <p className="font-mono text-sm text-white font-medium">{importFile.name}</p>
+                          <p className="font-mono text-xs text-white/30 mt-0.5">
+                            {(importFile.size / 1024).toFixed(0)} Ko · cliquez pour changer
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-white/20" />
+                        <div className="text-center">
+                          <p className="font-mono text-sm text-white/50">
+                            Glissez votre fichier CSV ici
+                          </p>
+                          <p className="font-mono text-xs text-white/20 mt-0.5">ou cliquez pour parcourir</p>
+                        </div>
+                      </>
+                    )}
+                  </label>
+
+                  {/* Instructions */}
+                  <div className="rounded-xl p-3 border border-white/[0.06] bg-white/[0.02]">
+                    <p className="font-mono text-xs text-white/40 leading-relaxed">
+                      {importModal === 'shopify'
+                        ? 'Exportez depuis Shopify : Produits → Exporter → Fichier CSV pour Excel'
+                        : 'Exportez depuis WooCommerce : Produits → Exporter → Générer CSV'}
+                    </p>
                   </div>
-                  <div>
-                    <label className="block font-mono text-xs text-white/50 mb-1.5">
-                      {importModal === 'woocommerce' ? t('importKey') : t('importApiKey')}
-                    </label>
-                    <input
-                      type="text"
-                      value={importKey}
-                      onChange={(e) => { setImportKey(e.target.value); setImportError(''); }}
-                      placeholder={importModal === 'woocommerce' ? 'ck_...' : 'shpat_...'}
-                      disabled={importing}
-                      className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40 disabled:opacity-50"
-                    />
-                  </div>
-                  {importModal === 'woocommerce' && (
-                    <div>
-                      <label className="block font-mono text-xs text-white/50 mb-1.5">{t('importSecret')}</label>
-                      <input
-                        type="text"
-                        value={importSecret}
-                        onChange={(e) => { setImportSecret(e.target.value); setImportError(''); }}
-                        placeholder="cs_..."
-                        disabled={importing}
-                        className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-orange-500/40 disabled:opacity-50"
-                      />
-                    </div>
-                  )}
 
                   {importError && (
                     <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
@@ -958,12 +949,6 @@ export default function ProductsClient({
                       <p className="font-mono text-xs text-red-400 leading-relaxed">{importError}</p>
                     </div>
                   )}
-
-                  <div className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]">
-                    <p className="font-mono text-xs text-white/40 leading-relaxed">
-                      {t('importSecurityNote')}
-                    </p>
-                  </div>
                 </div>
 
                 <div className="flex gap-3 mt-6">
@@ -976,8 +961,8 @@ export default function ProductsClient({
                   </button>
                   <button
                     onClick={handleImport}
-                    disabled={importing}
-                    className="flex-1 py-2.5 rounded-xl font-mono text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2 disabled:opacity-60"
+                    disabled={importing || !importFile}
+                    className="flex-1 py-2.5 rounded-xl font-mono text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2 disabled:opacity-40"
                     style={{ background: ORANGE }}
                   >
                     {importing ? (
