@@ -13,7 +13,9 @@ const connectionSchema = z.discriminatedUnion('platform', [
     name: z.string().min(1).max(100),
     botName: z.string().min(1).max(50).default('Assistant'),
     businessName: z.string().max(100).optional(),
-    twilioWhatsAppNumber: z.string().min(5).max(20),
+    whatsappPhoneNumberId: z.string().min(1),
+    whatsappAccessToken: z.string().min(10),
+    whatsappVerifyToken: z.string().min(6),
   }),
   z.object({
     platform: z.literal('TELEGRAM'),
@@ -30,6 +32,15 @@ const connectionSchema = z.discriminatedUnion('platform', [
     instagramUsername: z.string().min(1).max(60),
     instagramPassword: z.string().min(6),
   }),
+  z.object({
+    platform: z.literal('FACEBOOK'),
+    name: z.string().min(1).max(100),
+    botName: z.string().min(1).max(50).default('Assistant'),
+    businessName: z.string().max(100).optional(),
+    messengerPageId: z.string().min(1),
+    messengerAccessToken: z.string().min(10),
+    messengerVerifyToken: z.string().min(6),
+  }),
 ]);
 
 export async function GET(req: NextRequest) {
@@ -42,8 +53,13 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
   });
 
-  // Strip sensitive fields before returning
-  const safe = connections.map(({ telegramBotToken, instagramAccessToken, ...c }) => c);
+  // Strip all sensitive fields before returning
+  const safe = connections.map(({
+    telegramBotToken, instagramAccessToken, instagramPassword, instagramSessionData,
+    whatsappAccessToken, whatsappVerifyToken, messengerAccessToken, messengerVerifyToken,
+    telegramWebhookSecret, ecotrackToken, instagramWebhookVerifyToken,
+    ...c
+  }) => c);
   return NextResponse.json(safe);
 }
 
@@ -62,13 +78,12 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
 
-  // Enforce per-platform bot limits based on plan
   const BOT_LIMITS: Record<string, number> = {
     FREE: 1, STARTER: 1, BUSINESS: 3, PRO: 5, AGENCY: Infinity,
   };
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { planLevel: true },
+    select: { planLevel: true, isPartner: true },
   });
   const limit = BOT_LIMITS[user?.planLevel ?? 'FREE'] ?? 1;
   const existingCount = await prisma.connection.count({
@@ -81,8 +96,67 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Instagram is reserved for partners only
+  if (data.platform === 'INSTAGRAM' && !user?.isPartner) {
+    return NextResponse.json({ error: 'Instagram DM est réservé aux partenaires YelhaDms.' }, { status: 403 });
+  }
+
+  // ── WhatsApp (Meta Cloud API) ─────────────────────────────────────────────
+  if (data.platform === 'WHATSAPP') {
+    // Validate phone number ID + access token
+    const validRes = await fetch(
+      `https://graph.facebook.com/v20.0/${data.whatsappPhoneNumberId}?fields=id,display_phone_number&access_token=${data.whatsappAccessToken}`
+    );
+    const validData = await validRes.json();
+    if (!validRes.ok || validData.error) {
+      return NextResponse.json({ error: 'Phone Number ID ou Access Token invalide. Vérifiez vos credentials Meta.' }, { status: 400 });
+    }
+
+    const connection = await prisma.connection.create({
+      data: {
+        userId: session.user.id,
+        platform: 'WHATSAPP',
+        name: data.name,
+        botName: data.botName,
+        businessName: data.businessName,
+        whatsappPhoneNumberId: data.whatsappPhoneNumberId,
+        whatsappAccessToken: encrypt(data.whatsappAccessToken),
+        whatsappVerifyToken: encrypt(data.whatsappVerifyToken),
+      },
+    });
+
+    return NextResponse.json({ id: connection.id, platform: 'WHATSAPP', name: connection.name });
+  }
+
+  // ── Facebook Messenger ────────────────────────────────────────────────────
+  if (data.platform === 'FACEBOOK') {
+    // Validate page ID + access token
+    const validRes = await fetch(
+      `https://graph.facebook.com/v20.0/${data.messengerPageId}?fields=id,name&access_token=${data.messengerAccessToken}`
+    );
+    const validData = await validRes.json();
+    if (!validRes.ok || validData.error || validData.id !== data.messengerPageId) {
+      return NextResponse.json({ error: 'Page ID ou Access Token invalide. Vérifiez vos credentials Meta.' }, { status: 400 });
+    }
+
+    const connection = await prisma.connection.create({
+      data: {
+        userId: session.user.id,
+        platform: 'FACEBOOK',
+        name: data.name,
+        botName: data.botName,
+        businessName: data.businessName,
+        messengerPageId: data.messengerPageId,
+        messengerAccessToken: encrypt(data.messengerAccessToken),
+        messengerVerifyToken: encrypt(data.messengerVerifyToken),
+      },
+    });
+
+    return NextResponse.json({ id: connection.id, platform: 'FACEBOOK', name: connection.name, pageName: validData.name });
+  }
+
+  // ── Instagram (Private API) ───────────────────────────────────────────────
   if (data.platform === 'INSTAGRAM') {
-    // Login with username/password to get a session
     let encryptedSession: string;
     try {
       encryptedSession = await loginInstagram(data.instagramUsername, data.instagramPassword);
@@ -100,8 +174,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const encryptedPassword = encrypt(data.instagramPassword);
-
     const connection = await prisma.connection.create({
       data: {
         userId: session.user.id,
@@ -110,20 +182,16 @@ export async function POST(req: NextRequest) {
         botName: data.botName,
         businessName: data.businessName,
         instagramUsername: data.instagramUsername,
-        instagramPassword: encryptedPassword,
+        instagramPassword: encrypt(data.instagramPassword),
         instagramSessionData: encryptedSession,
       },
     });
 
-    return NextResponse.json({
-      id: connection.id,
-      platform: connection.platform,
-      name: connection.name,
-    });
+    return NextResponse.json({ id: connection.id, platform: 'INSTAGRAM', name: connection.name });
   }
 
+  // ── Telegram ──────────────────────────────────────────────────────────────
   if (data.platform === 'TELEGRAM') {
-    // Validate bot token against Telegram API
     const validateRes = await fetch(`https://api.telegram.org/bot${data.telegramBotToken}/getMe`);
     if (!validateRes.ok) {
       return NextResponse.json({ error: 'Token Telegram invalide' }, { status: 400 });
@@ -146,7 +214,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Register Telegram webhook
     const webhookRes = await fetch(`https://api.telegram.org/bot${data.telegramBotToken}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -159,20 +226,8 @@ export async function POST(req: NextRequest) {
       await prisma.connection.update({ where: { id: connection.id }, data: { telegramWebhookSet: true } });
     }
 
-    return NextResponse.json({ id: connection.id, platform: connection.platform, name: connection.name });
+    return NextResponse.json({ id: connection.id, platform: 'TELEGRAM', name: connection.name });
   }
 
-  // WHATSAPP (Twilio)
-  const connection = await prisma.connection.create({
-    data: {
-      userId: session.user.id,
-      platform: 'WHATSAPP',
-      name: data.name,
-      businessName: data.businessName,
-      botName: data.botName,
-      twilioWhatsAppNumber: data.twilioWhatsAppNumber,
-    },
-  });
-
-  return NextResponse.json({ id: connection.id, platform: connection.platform, name: connection.name });
+  return NextResponse.json({ error: 'Platform non supportée' }, { status: 400 });
 }

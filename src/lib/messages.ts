@@ -216,7 +216,7 @@ export async function saveInboundOnly(opts: {
 export async function getOrCreateConversation(opts: {
   connectionId: string;
   contactId: string;
-  platform: 'TELEGRAM' | 'WHATSAPP' | 'INSTAGRAM';
+  platform: 'TELEGRAM' | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK';
   contactName?: string | null;
 }) {
   const { connectionId, contactId, platform, contactName } = opts;

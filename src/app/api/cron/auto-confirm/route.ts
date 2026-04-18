@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendMessengerMessage } from '@/lib/messenger';
 
 async function sendTelegramMessage(token: string, chatId: string, text: string) {
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -11,7 +13,6 @@ async function sendTelegramMessage(token: string, chatId: string, text: string) 
 }
 
 export async function POST(req: NextRequest) {
-  // Verify cron secret
   const secret = req.headers.get('x-cron-secret');
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -19,36 +20,70 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
 
-  // Find orders due for auto-confirmation
   const dueOrders = await prisma.order.findMany({
     where: {
       status: 'PENDING',
       scheduledConfirmAt: { lte: now },
-      confirmationSentAt: null, // don't re-send
+      confirmationSentAt: null,
       contactId: { not: null },
     },
     include: {
-      connection: { select: { telegramBotToken: true, platform: true } },
+      connection: {
+        select: {
+          telegramBotToken: true,
+          whatsappPhoneNumberId: true,
+          whatsappAccessToken: true,
+          messengerAccessToken: true,
+          platform: true,
+        },
+      },
     },
     take: 50,
   });
 
   let sent = 0;
   for (const order of dueOrders) {
-    if (order.connection.platform !== 'TELEGRAM' || !order.connection.telegramBotToken || !order.contactId) continue;
-    try {
-      const token = decrypt(order.connection.telegramBotToken);
-      const msg =
-        `✅ <b>Confirmation de votre commande #${order.id.slice(-6).toUpperCase()}</b>\n\n` +
-        (order.contactName ? `👤 Nom : ${order.contactName}\n` : '') +
-        (order.contactPhone ? `📞 Téléphone : ${order.contactPhone}\n` : '') +
-        (order.notes ? `📍 Adresse : ${order.notes}\n` : '') +
-        ((order as any).ecotrackTracking ? `📦 Tracking : <b>${(order as any).ecotrackTracking}</b>\n` : '') +
-        `\n` +
-        (order.totalAmount ? `💰 Total : <b>${order.totalAmount.toLocaleString('fr-DZ')} DA</b>\n\n` : '') +
-        `Veuillez confirmer que ces informations sont correctes en répondant <b>OUI</b> ou signalez une correction.`;
+    if (!order.contactId) continue;
+    const { platform } = order.connection;
 
-      await sendTelegramMessage(token, order.contactId, msg);
+    const orderRef = `#${order.id.slice(-6).toUpperCase()}`;
+    const plainMsg =
+      `✅ Confirmation de votre commande ${orderRef}\n\n` +
+      (order.contactName ? `👤 Nom : ${order.contactName}\n` : '') +
+      (order.contactPhone ? `📞 Téléphone : ${order.contactPhone}\n` : '') +
+      (order.notes ? `📍 Adresse : ${order.notes}\n` : '') +
+      ((order as any).ecotrackTracking ? `📦 Tracking : ${(order as any).ecotrackTracking}\n` : '') +
+      `\n` +
+      (order.totalAmount ? `💰 Total : ${order.totalAmount.toLocaleString('fr-DZ')} DA\n\n` : '') +
+      `Veuillez confirmer que ces informations sont correctes en répondant OUI ou signalez une correction.`;
+
+    const htmlMsg =
+      `✅ <b>Confirmation de votre commande ${orderRef}</b>\n\n` +
+      (order.contactName ? `👤 Nom : ${order.contactName}\n` : '') +
+      (order.contactPhone ? `📞 Téléphone : ${order.contactPhone}\n` : '') +
+      (order.notes ? `📍 Adresse : ${order.notes}\n` : '') +
+      ((order as any).ecotrackTracking ? `📦 Tracking : <b>${(order as any).ecotrackTracking}</b>\n` : '') +
+      `\n` +
+      (order.totalAmount ? `💰 Total : <b>${order.totalAmount.toLocaleString('fr-DZ')} DA</b>\n\n` : '') +
+      `Veuillez confirmer que ces informations sont correctes en répondant <b>OUI</b> ou signalez une correction.`;
+
+    try {
+      if (platform === 'TELEGRAM') {
+        if (!order.connection.telegramBotToken) continue;
+        const token = decrypt(order.connection.telegramBotToken);
+        await sendTelegramMessage(token, order.contactId, htmlMsg);
+      } else if (platform === 'WHATSAPP') {
+        if (!order.connection.whatsappPhoneNumberId || !order.connection.whatsappAccessToken) continue;
+        const token = decrypt(order.connection.whatsappAccessToken);
+        await sendWhatsAppMessage(order.connection.whatsappPhoneNumberId, token, order.contactId, plainMsg);
+      } else if (platform === 'FACEBOOK') {
+        if (!order.connection.messengerAccessToken) continue;
+        const token = decrypt(order.connection.messengerAccessToken);
+        await sendMessengerMessage(token, order.contactId, plainMsg);
+      } else {
+        continue;
+      }
+
       await prisma.order.update({
         where: { id: order.id },
         data: { confirmationSentAt: now, scheduledConfirmAt: null },
@@ -62,7 +97,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ processed: dueOrders.length, sent });
 }
 
-// Also allow GET for simple ping
 export async function GET() {
   return NextResponse.json({ ok: true });
 }

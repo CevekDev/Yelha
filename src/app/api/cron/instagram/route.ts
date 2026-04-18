@@ -19,6 +19,12 @@ import {
   getNewInstagramMessages,
   getInstagramProfilePicUrl,
 } from '@/lib/instagram-private';
+import {
+  validateLocation,
+  handleEcotrackMessage,
+  buildLocationSuggestionsMsg,
+  type EcotrackState,
+} from '@/lib/ecotrack';
 import { mirrorImageToR2 } from '@/lib/r2';
 
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -79,6 +85,12 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
+      // ── Ecotrack connection fields ─────────────────────────────────────────
+      const ecoRawToken = (connection as any).ecotrackToken as string | null;
+      const ecoUrl = (connection as any).ecotrackUrl as string | null;
+      const ecoEnabled = !!(ecoRawToken && ecoUrl);
+      const ecoDeliveryFee = (connection as any).deliveryFee as number ?? 0;
+
       let maxTs = afterTs;
 
       for (const msg of messages) {
@@ -102,9 +114,11 @@ export async function GET(req: NextRequest) {
         // ── Profil photo → R2 ─────────────────────────────────────────────────
         await refreshProfilePhoto(sessionData, connection.id, contactId);
 
-        // ── Welcome message (first ever contact) ──────────────────────────────
+        // ── History ───────────────────────────────────────────────────────────
         const history = await getRecentHistory(conversation.id);
         const isFirstMessage = history.length === 0;
+
+        // ── Welcome message (first ever contact) ──────────────────────────────
         if (isFirstMessage && connection.welcomeMessage) {
           await sendInstagramPrivateDM(sessionData, contactId, connection.welcomeMessage);
           await saveInboundOnly({ conversationId: conversation.id, content: text, type: 'text' });
@@ -113,11 +127,98 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
+        // ── Confirmation reply detection ───────────────────────────────────────
+        const lower = text.toLowerCase().trim();
+        const isYes = /^(oui|yes|confirme|confirm|ok|d'accord|dacord|ouii|ouiii|ouais|yep|correct|exact|c'est bon|cest bon|c bon|je confirme|valide|validé|accepte|j'accepte)/.test(lower);
+        const isNo  = /^(non|no|annule|cancel|annuler|pas bon|faux|incorrect|je refuse|refuse|nope|nan|naan)/.test(lower);
+
+        if (isYes || isNo) {
+          let skipConfirmation = false;
+          if (ecoEnabled) {
+            const ctxEco = await prisma.contactContext.findUnique({
+              where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+              select: { metadata: true },
+            });
+            skipConfirmation = !!(ctxEco?.metadata as any)?.ecotrackState;
+          }
+
+          if (!skipConfirmation) {
+            const pendingOrder = await prisma.order.findFirst({
+              where: {
+                connectionId: connection.id,
+                contactId,
+                status: 'PENDING',
+                confirmationSentAt: { not: null },
+              },
+              orderBy: { confirmationSentAt: 'desc' },
+            });
+
+            if (pendingOrder) {
+              let newStatus: 'CONFIRMED' | 'CANCELLED' | 'SHIPPED' = isYes ? 'CONFIRMED' : 'CANCELLED';
+              let replyMsg = '';
+
+              if (isYes) {
+                const autoShip = (connection as any).ecotrackAutoShip as boolean;
+                if (autoShip && ecoEnabled && pendingOrder.ecotrackTracking) {
+                  try {
+                    const { shipEcotrackOrder } = await import('@/lib/ecotrack');
+                    const shipped = await shipEcotrackOrder(ecoUrl!, decrypt(ecoRawToken!), pendingOrder.ecotrackTracking);
+                    if (shipped) {
+                      newStatus = 'SHIPPED';
+                      replyMsg = `✅ Commande #${pendingOrder.id.slice(-6).toUpperCase()} confirmée et expédiée ! 🚚\n📦 Tracking : ${pendingOrder.ecotrackTracking}\n\nMerci pour votre confiance ! 🎉`;
+                    }
+                  } catch (e) { console.error('[Instagram] Auto-ship error', e); }
+                }
+                if (!replyMsg) {
+                  replyMsg = `✅ Votre commande #${pendingOrder.id.slice(-6).toUpperCase()} a été confirmée avec succès ! Merci pour votre confiance. 🎉`;
+                  if (pendingOrder.ecotrackTracking) replyMsg += `\n📦 Tracking : ${pendingOrder.ecotrackTracking}`;
+                }
+              } else {
+                replyMsg = `❌ Votre commande #${pendingOrder.id.slice(-6).toUpperCase()} a été annulée. N'hésitez pas à nous recontacter si vous changez d'avis.`;
+                if (pendingOrder.ecotrackTracking && ecoEnabled) {
+                  try {
+                    const { deleteEcotrackOrder } = await import('@/lib/ecotrack');
+                    await deleteEcotrackOrder(ecoUrl!, decrypt(ecoRawToken!), pendingOrder.ecotrackTracking);
+                  } catch (e) { console.error('[Instagram] Delete order error', e); }
+                }
+              }
+
+              await prisma.order.update({ where: { id: pendingOrder.id }, data: { status: newStatus } });
+              await sendInstagramPrivateDM(sessionData, contactId, replyMsg);
+              await saveInboundOnly({ conversationId: conversation.id, content: text, type: 'text' });
+              const meta = await getContactMeta(connection.id, contactId);
+              await upsertContactContext(connection.id, contactId, { contactName: null, metadata: meta });
+              continue;
+            }
+          }
+        }
+
+        // ── Ecotrack state machine (intercepts mid-order flow) ─────────────────
+        if (ecoEnabled) {
+          const ctxForEco = await prisma.contactContext.findUnique({
+            where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+            select: { metadata: true },
+          });
+          const metaForEco = (ctxForEco?.metadata as Record<string, any> | null) ?? {};
+          const ecoState = metaForEco.ecotrackState as EcotrackState | undefined;
+
+          if (ecoState) {
+            const ecoToken = decrypt(ecoRawToken!);
+            const result = await handleEcotrackMessage(ecoState, text, ecoToken, ecoUrl!, ecoDeliveryFee);
+            if (result.handled) {
+              const newMeta = { ...metaForEco, ecotrackState: result.newState ?? undefined };
+              await upsertContactContext(connection.id, contactId, { contactName: null, metadata: newMeta });
+              if (result.responseText) await sendInstagramPrivateDM(sessionData, contactId, result.responseText);
+              await saveInboundOnly({ conversationId: conversation.id, content: text, type: 'text' });
+              continue;
+            }
+          }
+        }
+
         let responseText = '';
         let tokensRequired = 1;
 
         // ── Réponses prédéfinies (0 token) ────────────────────────────────────
-        const lower = text.toLowerCase();
         const predefined = connection.predefinedMessages.find((m) =>
           m.keywords.some((k: string) => lower.includes(k.toLowerCase()))
         );
@@ -131,7 +232,7 @@ export async function GET(req: NextRequest) {
           const contactCtx = await prisma.contactContext.findUnique({
             where: { connectionId_contactId: { connectionId: connection.id, contactId } },
           });
-          const systemPrompt = await buildIgSystemPrompt(connection, buildContactContextString(contactCtx), isFirstMessage);
+          const systemPrompt = await buildIgSystemPrompt(connection, buildContactContextString(contactCtx), isFirstMessage, ecoDeliveryFee);
           const aiMessages = [...history, { role: 'user' as const, content: text }];
           const rawResponse = await callDeepSeek(aiMessages, systemPrompt);
 
@@ -157,8 +258,25 @@ export async function GET(req: NextRequest) {
               });
               if (latestOrder) {
                 await prisma.order.update({ where: { id: latestOrder.id }, data: { status: 'CANCELLED' } });
+                if (latestOrder.ecotrackTracking && ecoEnabled) {
+                  try {
+                    const { deleteEcotrackOrder } = await import('@/lib/ecotrack');
+                    await deleteEcotrackOrder(ecoUrl!, decrypt(ecoRawToken!), latestOrder.ecotrackTracking);
+                  } catch (e) { console.error('[Instagram] Ecotrack delete error', e); }
+                }
               }
-            } catch {}
+              if (ecoEnabled) {
+                const ctxCancel = await prisma.contactContext.findUnique({
+                  where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+                  select: { metadata: true },
+                });
+                if ((ctxCancel?.metadata as any)?.ecotrackState) {
+                  const clearedMeta = { ...(ctxCancel!.metadata as Record<string, any>) };
+                  delete clearedMeta.ecotrackState;
+                  await upsertContactContext(connection.id, contactId, { contactName: null, metadata: clearedMeta });
+                }
+              }
+            } catch (e) { console.error('[Instagram] Order cancellation error', e); }
           }
           // ── Commande modifiée ──────────────────────────────────────────────
           else if (rawResponse.includes('[COMMANDE_MODIFIEE:')) {
@@ -196,10 +314,54 @@ export async function GET(req: NextRequest) {
                     },
                     orderBy: { updatedAt: 'desc' },
                   });
+                  let newOrderId: string;
                   if (recentCancelled) {
-                    await updateOrCreateOrder(connection, contactId, null, orderData, recentCancelled.id);
+                    newOrderId = await updateOrCreateOrder(connection, contactId, null, orderData, recentCancelled.id);
                   } else {
-                    await saveOrderFromBot(connection, contactId, null, orderData);
+                    newOrderId = await saveOrderFromBot(connection, contactId, null, orderData);
+                  }
+
+                  // ── Ecotrack: validate address + start delivery flow ────────
+                  if (ecoEnabled && newOrderId) {
+                    try {
+                      const ecoToken = decrypt(ecoRawToken!);
+                      const { found, suggestions } = await validateLocation(ecoUrl!, ecoToken, orderData.wilaya || '', orderData.commune || '');
+                      const contactCtx = await prisma.contactContext.findUnique({
+                        where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+                      });
+                      if (found) {
+                        const newState: EcotrackState = {
+                          step: 'awaiting_delivery_type',
+                          orderId: newOrderId,
+                          orderData,
+                          wilayaId: found.wilayaId,
+                          wilayaName: found.wilayaName,
+                          communeName: found.communeName,
+                          codePostal: found.codePostal,
+                          hasStopDesk: found.hasStopDesk,
+                        };
+                        const currMeta = (contactCtx?.metadata as Record<string, any> | null) ?? {};
+                        await upsertContactContext(connection.id, contactId, { contactName: null, metadata: { ...currMeta, ecotrackState: newState } });
+                        responseText = `✅ Commande enregistrée !\n\n📍 Livraison à ${found.communeName}, ${found.wilayaName}.\n\nComment souhaitez-vous recevoir votre colis ?\n1️⃣ Livraison à domicile\n${found.hasStopDesk ? '2️⃣ Retrait en Stop Desk (agence)' : '2️⃣ Stop Desk (non disponible dans cette commune)'}`;
+                      } else if (suggestions.length > 0) {
+                        const newState: EcotrackState = {
+                          step: 'awaiting_location_confirm',
+                          orderId: newOrderId,
+                          orderData,
+                          wilayaId: suggestions[0].wilayaId,
+                          wilayaName: suggestions[0].wilayaName,
+                          communeName: suggestions[0].communeName,
+                          codePostal: suggestions[0].codePostal,
+                          hasStopDesk: suggestions[0].hasStopDesk,
+                          suggestions,
+                        };
+                        const currMeta = (contactCtx?.metadata as Record<string, any> | null) ?? {};
+                        await upsertContactContext(connection.id, contactId, { contactName: null, metadata: { ...currMeta, ecotrackState: newState } });
+                        responseText = buildLocationSuggestionsMsg(suggestions, orderData.commune || '', orderData.wilaya || '');
+                      }
+                    } catch (ecoErr) {
+                      console.error('[Instagram][Ecotrack] Location validation error', ecoErr);
+                    }
                   }
                 } catch (e) { console.error('[Instagram] Order parse error', e); }
               } else {
@@ -208,6 +370,37 @@ export async function GET(req: NextRequest) {
             } else if (!rawResponse.startsWith('[HORS_SUJET]')) {
               responseText = rawResponse;
             }
+          }
+
+          // ── Statut de commande [ORDER_STATUS_QUERY] ────────────────────────
+          if (responseText.includes('[ORDER_STATUS_QUERY]')) {
+            responseText = responseText.replace('[ORDER_STATUS_QUERY]', '').trim();
+            try {
+              const latestOrder = await prisma.order.findFirst({
+                where: { connectionId: connection.id, contactId },
+                orderBy: { createdAt: 'desc' },
+                select: { id: true, status: true, trackingCode: true, ecotrackTracking: true, totalAmount: true, createdAt: true },
+              });
+              if (latestOrder) {
+                const statusLabels: Record<string, string> = {
+                  PENDING: '⏳ En attente de confirmation',
+                  CONFIRMED: '✅ Confirmée',
+                  PROCESSING: '🔄 En cours de traitement',
+                  SHIPPED: '🚚 Expédiée',
+                  DELIVERED: '📦 Livrée',
+                  CANCELLED: '❌ Annulée',
+                  RETURNED: '↩️ Retournée',
+                };
+                const tracking = latestOrder.ecotrackTracking || latestOrder.trackingCode;
+                responseText = `📦 Commande #${latestOrder.id.slice(-6).toUpperCase()}\n` +
+                  `Statut : ${statusLabels[latestOrder.status] || latestOrder.status}\n` +
+                  (tracking ? `Tracking : ${tracking}\n` : '') +
+                  (latestOrder.totalAmount ? `Total : ${latestOrder.totalAmount.toLocaleString('fr-DZ')} DA\n` : '') +
+                  `Date : ${latestOrder.createdAt.toLocaleDateString('fr-DZ')}`;
+              } else {
+                responseText = `Aucune commande trouvée pour votre compte.`;
+              }
+            } catch (e) { console.error('[Instagram][ORDER_STATUS] Error', e); }
           }
         }
 
@@ -285,9 +478,6 @@ export async function GET(req: NextRequest) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-/**
- * Fetch Instagram profile pic and mirror to R2. Refreshes every 24h.
- */
 async function refreshProfilePhoto(
   sessionData: string,
   connectionId: string,
@@ -306,27 +496,13 @@ async function refreshProfilePhoto(
     const picUrl = await getInstagramProfilePicUrl(sessionData, contactId);
     if (!picUrl) return;
 
-    // Mirror to R2 — key: avatars/ig_{contactId}.jpg
     const r2Key = `avatars/ig_${contactId}.jpg`;
     const r2Url = await mirrorImageToR2(picUrl, r2Key);
 
     await prisma.contactContext.upsert({
       where: { connectionId_contactId: { connectionId, contactId } },
-      update: {
-        metadata: {
-          ...(meta as object),
-          profilePhotoUrl: r2Url ?? picUrl, // fallback to IG URL if R2 not configured
-          lastPhotoFetch: Date.now(),
-        },
-      },
-      create: {
-        connectionId,
-        contactId,
-        metadata: {
-          profilePhotoUrl: r2Url ?? picUrl,
-          lastPhotoFetch: Date.now(),
-        },
-      },
+      update: { metadata: { ...(meta as object), profilePhotoUrl: r2Url ?? picUrl, lastPhotoFetch: Date.now() } },
+      create: { connectionId, contactId, metadata: { profilePhotoUrl: r2Url ?? picUrl, lastPhotoFetch: Date.now() } },
     });
   } catch (e) {
     console.error('[Instagram] Profile photo refresh error:', e);
@@ -341,7 +517,7 @@ async function getContactMeta(connectionId: string, contactId: string): Promise<
   return (ctx?.metadata as Record<string, unknown> | null) ?? {};
 }
 
-async function buildIgSystemPrompt(connection: any, contactContext: string, isFirstMessage: boolean): Promise<string> {
+async function buildIgSystemPrompt(connection: any, contactContext: string, isFirstMessage: boolean, deliveryFee = 0): Promise<string> {
   const predefinedStr = connection.predefinedMessages
     .map((m: any) => `Mots-clés: ${m.keywords.join(', ')}\nRéponse: ${m.response}`)
     .join('\n---\n');
@@ -371,6 +547,7 @@ async function buildIgSystemPrompt(connection: any, contactContext: string, isFi
     detailResponses: detailStr,
     isFirstMessage,
     commerceType: connection.commerceType || 'products',
+    deliveryFee,
   });
 
   const productDetailsStr = products
@@ -392,7 +569,7 @@ RÈGLES PRODUITS (STRICTES) :
 ${productDetailsStr ? `DESCRIPTIONS (uniquement si demandé) :\n${productDetailsStr}` : ''}`;
 }
 
-async function saveOrderFromBot(connection: any, contactId: string, contactName: string | null, data: any) {
+async function saveOrderFromBot(connection: any, contactId: string, contactName: string | null, data: any): Promise<string> {
   const allProducts = await prisma.product.findMany({
     where: { userId: connection.userId, isActive: true },
     select: { id: true, name: true, price: true },
@@ -414,6 +591,11 @@ async function saveOrderFromBot(connection: any, contactId: string, contactName:
   const fullName = [data.prenom, data.nom].filter(Boolean).join(' ') || contactName || 'Client';
   const notes = `Wilaya: ${data.wilaya || ''} — Commune: ${data.commune || ''}`;
 
+  const autoConfirmDelay = (connection.autoConfirmDelay ?? 0) as number;
+  const scheduledConfirmAt = autoConfirmDelay > 0
+    ? new Date(Date.now() + autoConfirmDelay * 60 * 60 * 1000)
+    : null;
+
   const order = await prisma.order.create({
     data: {
       userId: connection.userId,
@@ -423,13 +605,16 @@ async function saveOrderFromBot(connection: any, contactId: string, contactName:
       contactPhone: data.telephone || null,
       totalAmount: total,
       notes,
+      ...(scheduledConfirmAt ? { scheduledConfirmAt } : {}),
       items: { create: items.map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price, ...(i.productId ? { productId: i.productId } : {}) })) },
     },
   });
-  console.log(`[Instagram] Order saved: ${order.id} for ${fullName}`);
+
+  console.log(`[Instagram] Order saved: ${order.id} for ${fullName}${scheduledConfirmAt ? ` — auto-confirm at ${scheduledConfirmAt.toISOString()}` : ''}`);
+  return order.id;
 }
 
-async function updateOrCreateOrder(connection: any, contactId: string, contactName: string | null, data: any, existingOrderId?: string) {
+async function updateOrCreateOrder(connection: any, contactId: string, contactName: string | null, data: any, existingOrderId?: string): Promise<string> {
   const allProducts = await prisma.product.findMany({
     where: { userId: connection.userId, isActive: true },
     select: { id: true, name: true, price: true },
@@ -454,13 +639,15 @@ async function updateOrCreateOrder(connection: any, contactId: string, contactNa
       where: { id: existingOrderId },
       data: { contactName: fullName, contactPhone: data.telephone || null, totalAmount: total, notes, status: 'PENDING', items: { create: items.map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price, ...(i.productId ? { productId: i.productId } : {}) })) } },
     });
+    return existingOrderId;
   } else {
     const latest = await prisma.order.findFirst({ where: { connectionId: connection.id, contactId, status: 'PENDING' }, orderBy: { createdAt: 'desc' } });
     if (latest) {
       await prisma.orderItem.deleteMany({ where: { orderId: latest.id } });
       await prisma.order.update({ where: { id: latest.id }, data: { contactName: fullName, contactPhone: data.telephone || null, totalAmount: total, notes, items: { create: items.map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price, ...(i.productId ? { productId: i.productId } : {}) })) } } });
+      return latest.id;
     } else {
-      await saveOrderFromBot(connection, contactId, contactName, data);
+      return saveOrderFromBot(connection, contactId, contactName, data);
     }
   }
 }

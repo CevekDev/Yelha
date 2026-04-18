@@ -12,6 +12,7 @@ export async function GET() {
     select: {
       id: true, name: true, email: true, image: true, role: true,
       tokenBalance: true, unlimitedTokens: true, twoFactorEnabled: true, createdAt: true,
+      isPartner: true, planLevel: true,
     },
   });
   return NextResponse.json(user);

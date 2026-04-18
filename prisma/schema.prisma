@@ -18,6 +18,7 @@ enum Platform {
   WHATSAPP
   TELEGRAM
   INSTAGRAM
+  FACEBOOK
 }
 
 enum PlanLevel {
@@ -192,6 +193,16 @@ model Connection {
   instagramAccessToken        String?  @db.Text
   instagramUserId             String?
   instagramWebhookVerifyToken String?  @db.Text
+
+  // WhatsApp Meta Cloud API
+  whatsappPhoneNumberId    String?
+  whatsappAccessToken      String?   @db.Text  // AES-256-GCM encrypted
+  whatsappVerifyToken      String?   @db.Text  // AES-256-GCM encrypted
+
+  // Facebook Messenger
+  messengerPageId          String?
+  messengerAccessToken     String?   @db.Text  // AES-256-GCM encrypted
+  messengerVerifyToken     String?   @db.Text  // AES-256-GCM encrypted
 
   // Ecotrack delivery integration
   ecotrackUrl          String?
