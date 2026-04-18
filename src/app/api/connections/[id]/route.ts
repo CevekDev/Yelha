@@ -31,15 +31,18 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const connection = await prisma.connection.findFirst({
-    where: { id: params.id, userId: session.user.id },
-    include: { predefinedMessages: { orderBy: { priority: 'asc' } }, botCommands: true },
-  });
+  const [connection, user] = await Promise.all([
+    prisma.connection.findFirst({
+      where: { id: params.id, userId: session.user.id },
+      include: { predefinedMessages: { orderBy: { priority: 'asc' } }, botCommands: true },
+    }),
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { planLevel: true } }),
+  ]);
 
   if (!connection) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const { telegramBotToken, ...safe } = connection;
-  return NextResponse.json(safe);
+  const { telegramBotToken, ecotrackToken, ...safe } = connection;
+  return NextResponse.json({ ...safe, _planLevel: user?.planLevel ?? 'FREE' });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

@@ -4,8 +4,8 @@ import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   ShoppingCart, Search, Eye, X, Package, Clock,
-  CheckCircle, Truck, AlertCircle, XCircle, User, Bot,
-  RotateCcw, Send, Loader2, Trash2,
+  CheckCircle, Truck, XCircle, User, Bot,
+  RotateCcw, Send, Loader2, Trash2, Square, CheckSquare, ChevronDown,
 } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
@@ -27,6 +27,7 @@ type Order = {
   totalAmount: number | null;
   notes: string | null;
   trackingCode: string | null;
+  confirmationSentAt: Date | null;
   createdAt: Date;
   items: OrderItem[];
   connection: { name: string; platform: string };
@@ -80,6 +81,9 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
   const [confirmRequestLoading, setConfirmRequestLoading] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [showBulkMenu, setShowBulkMenu] = useState(false);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -127,11 +131,95 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
     try {
       const res = await fetch(`/api/orders/${orderId}/confirm-request`, { method: 'POST' });
       if (!res.ok) throw new Error();
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, confirmationSentAt: new Date() } : o));
+      if (selectedOrder?.id === orderId) setSelectedOrder(prev => prev ? { ...prev, confirmationSentAt: new Date() } : null);
       showToast(t('confirmSent'));
     } catch {
       showToast(t('sendError'), false);
     } finally {
       setConfirmRequestLoading(null);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(o => o.id)));
+    }
+  };
+
+  const bulkUpdateStatus = async (newStatus: string) => {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    setShowBulkMenu(false);
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/orders/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+          })
+        )
+      );
+      setOrders(prev => prev.map(o => selectedIds.has(o.id) ? { ...o, status: newStatus } : o));
+      setSelectedIds(new Set());
+      showToast(`${selectedIds.size} commandes mises à jour`);
+    } catch {
+      showToast('Erreur lors de la mise à jour', false);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Supprimer ${selectedIds.size} commande(s) définitivement ?`)) return;
+    setBulkLoading(true);
+    setShowBulkMenu(false);
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/orders/${id}`, { method: 'DELETE' })
+        )
+      );
+      setOrders(prev => prev.filter(o => !selectedIds.has(o.id)));
+      if (selectedOrder && selectedIds.has(selectedOrder.id)) setSelectedOrder(null);
+      setSelectedIds(new Set());
+      showToast(`${selectedIds.size} commandes supprimées`);
+    } catch {
+      showToast('Erreur lors de la suppression', false);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const bulkSendConfirm = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    setShowBulkMenu(false);
+    const ids = Array.from(selectedIds).filter(id => {
+      const o = orders.find(x => x.id === id);
+      return o && ['PENDING', 'CONFIRMED'].includes(o.status);
+    });
+    try {
+      await Promise.all(ids.map(id => fetch(`/api/orders/${id}/confirm-request`, { method: 'POST' })));
+      setOrders(prev => prev.map(o => ids.includes(o.id) ? { ...o, confirmationSentAt: new Date() } : o));
+      setSelectedIds(new Set());
+      showToast(`Confirmation envoyée pour ${ids.length} commande(s)`);
+    } catch {
+      showToast('Erreur lors de l\'envoi', false);
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -167,6 +255,71 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
           }`}
         >
           {toast.msg}
+        </div>
+      )}
+
+      {/* Bulk action toolbar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl border flex-wrap"
+          style={{ background: `${ORANGE}10`, borderColor: `${ORANGE}30` }}
+        >
+          <span className="font-mono text-sm font-semibold" style={{ color: ORANGE }}>
+            {selectedIds.size} sélectionné(s)
+          </span>
+          <div className="flex items-center gap-2 flex-wrap ml-auto relative">
+            <button
+              onClick={bulkSendConfirm}
+              disabled={bulkLoading}
+              className="px-3 py-1.5 rounded-lg font-mono text-xs font-semibold flex items-center gap-1.5 transition-all hover:opacity-80 disabled:opacity-50"
+              style={{ background: '#8B5CF620', color: '#8B5CF6', border: '1px solid #8B5CF640' }}
+            >
+              <Send className="w-3 h-3" />
+              Envoyer confirmation
+            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowBulkMenu(v => !v)}
+                disabled={bulkLoading}
+                className="px-3 py-1.5 rounded-lg font-mono text-xs font-semibold flex items-center gap-1.5 transition-all hover:opacity-80 disabled:opacity-50"
+                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                Changer statut
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {showBulkMenu && (
+                <div
+                  className="absolute right-0 top-full mt-1 rounded-xl border py-1 z-20 min-w-[160px]"
+                  style={{ background: '#111', borderColor: 'rgba(255,255,255,0.1)' }}
+                >
+                  {(['PENDING','CONFIRMED','SHIPPED','DELIVERED','CANCELLED','RETURNED'] as string[]).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => bulkUpdateStatus(s)}
+                      className="w-full text-left px-3 py-2 font-mono text-xs text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      {STATUS_CONFIG[s]?.label || s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={bulkDelete}
+              disabled={bulkLoading}
+              className="px-3 py-1.5 rounded-lg font-mono text-xs font-semibold flex items-center gap-1.5 transition-all hover:opacity-80 disabled:opacity-50"
+              style={{ background: '#EF444420', color: '#EF4444', border: '1px solid #EF444440' }}
+            >
+              {bulkLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              Supprimer
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="p-1.5 rounded-lg text-white/30 hover:text-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -264,16 +417,26 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
             return (
               <div
                 key={order.id}
-                className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3"
+                className={`rounded-2xl border border-white/[0.06] p-4 space-y-3 transition-colors ${selectedIds.has(order.id) ? 'bg-white/[0.04]' : 'bg-white/[0.02]'}`}
                 onClick={() => setSelectedOrder(order)}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-mono text-xs text-white/40">#{order.id.slice(-6).toUpperCase()}</p>
-                    <p className="font-mono text-sm font-semibold text-white mt-0.5">
-                      {order.contactName || order.contactId || '—'}
-                    </p>
-                    {order.contactPhone && <p className="font-mono text-xs text-white/30">{order.contactPhone}</p>}
+                  <div className="flex items-start gap-2 flex-1">
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleSelect(order.id); }}
+                      className="mt-0.5 text-white/30 hover:text-white/60 transition-colors flex-shrink-0"
+                    >
+                      {selectedIds.has(order.id)
+                        ? <CheckSquare className="w-3.5 h-3.5" style={{ color: ORANGE }} />
+                        : <Square className="w-3.5 h-3.5" />}
+                    </button>
+                    <div>
+                      <p className="font-mono text-xs text-white/40">#{order.id.slice(-6).toUpperCase()}</p>
+                      <p className="font-mono text-sm font-semibold text-white mt-0.5">
+                        {order.contactName || order.contactId || '—'}
+                      </p>
+                      {order.contactPhone && <p className="font-mono text-xs text-white/30">{order.contactPhone}</p>}
+                    </div>
                   </div>
                   <div
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-mono font-semibold flex-shrink-0"
@@ -322,6 +485,13 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                <th className="px-4 py-3 w-8">
+                  <button onClick={toggleSelectAll} className="text-white/30 hover:text-white/60 transition-colors">
+                    {selectedIds.size === filtered.length && filtered.length > 0
+                      ? <CheckSquare className="w-3.5 h-3.5" />
+                      : <Square className="w-3.5 h-3.5" />}
+                  </button>
+                </th>
                 {[
                   t('table.order'),
                   t('table.client'),
@@ -348,8 +518,18 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                 return (
                   <tr
                     key={order.id}
-                    className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+                    className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${selectedIds.has(order.id) ? 'bg-white/[0.03]' : ''}`}
                   >
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleSelect(order.id)}
+                        className="text-white/30 hover:text-white/60 transition-colors"
+                      >
+                        {selectedIds.has(order.id)
+                          ? <CheckSquare className="w-3.5 h-3.5" style={{ color: ORANGE }} />
+                          : <Square className="w-3.5 h-3.5" />}
+                      </button>
+                    </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs text-white/40">
                         #{order.id.slice(-6).toUpperCase()}
@@ -378,12 +558,20 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-semibold"
-                        style={{ color: status.color, background: status.bg }}
-                      >
-                        <StatusIcon className="w-3 h-3" />
-                        {status.label}
+                      <div className="flex flex-col gap-1">
+                        <div
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-semibold w-fit"
+                          style={{ color: status.color, background: status.bg }}
+                        >
+                          <StatusIcon className="w-3 h-3" />
+                          {status.label}
+                        </div>
+                        {order.confirmationSentAt && order.status === 'PENDING' && (
+                          <span className="font-mono text-[10px] text-yellow-400/70 flex items-center gap-1">
+                            <Send className="w-2.5 h-2.5" />
+                            En attente réponse
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -411,21 +599,21 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                           </button>
                         ))}
 
-                        {/* Confirm request button (only for actionable orders) */}
-                        {['PENDING', 'CONFIRMED'].includes(order.status) && (
+                        {/* Confirm request button (only for PENDING orders) */}
+                        {order.status === 'PENDING' && (
                           <button
                             onClick={() => sendConfirmRequest(order.id)}
                             disabled={confirmRequestLoading === order.id}
                             className="px-2.5 py-1 rounded-lg font-mono text-[11px] font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex items-center gap-1"
                             style={{ background: '#8B5CF620', color: '#8B5CF6', border: '1px solid #8B5CF640' }}
-                            title={t('confirmRequest')}
+                            title={order.confirmationSentAt ? 'Renvoyer la demande' : t('confirmRequest')}
                           >
                             {confirmRequestLoading === order.id ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
                               <Send className="w-3 h-3" />
                             )}
-                            {t('actions.confirm')}
+                            {order.confirmationSentAt ? 'Renvoyer' : 'Demander'}
                           </button>
                         )}
 
@@ -591,11 +779,14 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
               )}
 
               {/* Confirm request in modal */}
-              {['PENDING', 'CONFIRMED'].includes(selectedOrder.status) && (
+              {selectedOrder.status === 'PENDING' && (
                 <div className="pt-2 border-t border-white/[0.06]">
-                  <p className="font-mono text-xs text-white/30 mb-2">
-                    {t('confirmRequest')}
-                  </p>
+                  {selectedOrder.confirmationSentAt && (
+                    <p className="font-mono text-xs text-yellow-400/70 mb-2 flex items-center gap-1">
+                      <Send className="w-3 h-3" />
+                      Demande envoyée — en attente de réponse client
+                    </p>
+                  )}
                   <button
                     onClick={() => sendConfirmRequest(selectedOrder.id)}
                     disabled={confirmRequestLoading === selectedOrder.id}
@@ -607,7 +798,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                     ) : (
                       <Send className="w-4 h-4" />
                     )}
-                    {t('confirmRequestBtn')}
+                    {selectedOrder.confirmationSentAt ? 'Renvoyer la demande' : t('confirmRequestBtn')}
                   </button>
                 </div>
               )}

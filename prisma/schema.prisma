@@ -193,6 +193,11 @@ model Connection {
   instagramUserId             String?
   instagramWebhookVerifyToken String?  @db.Text
 
+  // Ecotrack delivery integration
+  ecotrackUrl          String?
+  ecotrackToken        String?   @db.Text  // AES-256-GCM encrypted
+  ecotrackAutoShip     Boolean   @default(false)
+
   // Business hours
   businessHours        Json?
   timezone             String    @default("UTC")
@@ -421,12 +426,16 @@ model Order {
   contactName  String?
   contactId    String?
   contactPhone String?
-  status       OrderStatus @default(PENDING)
-  totalAmount  Float?
-  notes        String?     @db.Text
-  trackingCode String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  status               OrderStatus @default(PENDING)
+  totalAmount          Float?
+  notes                String?     @db.Text
+  trackingCode         String?
+  confirmationSentAt   DateTime?
+  ecotrackTracking     String?
+  deliveryType         Int?        // 0=domicile, 1=stop_desk
+  codeWilaya           Int?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)

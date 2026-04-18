@@ -14,6 +14,13 @@ import {
   handleSpam,
   logCost,
 } from '@/lib/messages';
+import {
+  validateLocation,
+  handleEcotrackMessage,
+  buildLocationSuggestionsMsg,
+  finalizeEcotrackOrder,
+  type EcotrackState,
+} from '@/lib/ecotrack';
 
 
 // ── Fetch Telegram profile photo URL (temporary but functional) ──────────
@@ -121,6 +128,65 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
+  // ── Confirmation reply detection ─────────────────────────────────────────
+  if (text) {
+    const lower = text.toLowerCase().trim();
+    const isYes = /^(oui|yes|confirme|confirm|ok|d'accord|dacord|yep|ouii|ouiii|ouais|yep|correct|exact|c'est bon|cest bon|c bon|je confirme|valide|validé|accepte|j'accepte)/.test(lower);
+    const isNo  = /^(non|no|annule|cancel|annuler|pas bon|faux|incorrect|je refuse|refuse|nope|nan|naan)/.test(lower);
+
+    if (isYes || isNo) {
+      const pendingOrder = await prisma.order.findFirst({
+        where: {
+          connectionId: connection.id,
+          contactId,
+          status: 'PENDING',
+          confirmationSentAt: { not: null },
+        },
+        orderBy: { confirmationSentAt: 'desc' },
+      });
+
+      if (pendingOrder) {
+        let newStatus: 'CONFIRMED' | 'CANCELLED' | 'SHIPPED' = isYes ? 'CONFIRMED' : 'CANCELLED';
+        let replyMsg = '';
+
+        if (isYes) {
+          // Auto-ship via Ecotrack if enabled and order has a tracking code
+          const connEcoToken = (connection as any).ecotrackToken as string | null;
+          const connEcoUrl = (connection as any).ecotrackUrl as string | null;
+          const autoShip = (connection as any).ecotrackAutoShip as boolean;
+
+          if (autoShip && connEcoToken && connEcoUrl && pendingOrder.ecotrackTracking) {
+            try {
+              const { shipEcotrackOrder } = await import('@/lib/ecotrack');
+              const shipped = await shipEcotrackOrder(connEcoUrl, decrypt(connEcoToken), pendingOrder.ecotrackTracking);
+              if (shipped) {
+                newStatus = 'SHIPPED';
+                replyMsg = `✅ Commande *#${pendingOrder.id.slice(-6).toUpperCase()}* confirmée et *expédiée* ! 🚚\n📦 Tracking : *${pendingOrder.ecotrackTracking}*\n\nMerci pour votre confiance ! 🎉`;
+              }
+            } catch (e) {
+              console.error('[Ecotrack] Auto-ship error', e);
+            }
+          }
+          if (!replyMsg) {
+            replyMsg = `✅ Votre commande *#${pendingOrder.id.slice(-6).toUpperCase()}* a été *confirmée* avec succès ! Merci pour votre confiance. 🎉`;
+            if (pendingOrder.ecotrackTracking) replyMsg += `\n📦 Tracking : *${pendingOrder.ecotrackTracking}*`;
+          }
+        } else {
+          replyMsg = `❌ Votre commande *#${pendingOrder.id.slice(-6).toUpperCase()}* a été *annulée*. N'hésitez pas à nous recontacter si vous changez d'avis.`;
+        }
+
+        await prisma.order.update({ where: { id: pendingOrder.id }, data: { status: newStatus } });
+        await sendTelegramMessage(token, chatId, replyMsg);
+
+        const metadata = await buildMergedMetadata();
+        await upsertContactContext(connection.id, contactId, { contactName, metadata });
+        await saveInboundOnly({ conversationId: (await getOrCreateConversation({ connectionId: connection.id, contactId, platform: 'TELEGRAM', contactName })).id, content: text, type: 'text' });
+
+        return NextResponse.json({ ok: true });
+      }
+    }
+  }
+
   // Récupérer la conversation (pour vérifier suspension/needsHelp)
   const conversation = await getOrCreateConversation({
     connectionId: connection.id,
@@ -184,6 +250,32 @@ export async function POST(
   if (tokensRequired > 0 && !user.unlimitedTokens && user.tokenBalance < tokensRequired) {
     await sendTelegramMessage(token, chatId, '⚠️ Solde de jetons insuffisant. Rechargez votre compte sur YelhaDms.');
     return NextResponse.json({ ok: true });
+  }
+
+  // ── Ecotrack state machine (intercepts text messages mid-order flow) ────────
+  const ecoRawToken = (connection as any).ecotrackToken as string | null;
+  const ecoUrl = (connection as any).ecotrackUrl as string | null;
+  const ecoEnabled = !!(ecoRawToken && ecoUrl);
+
+  if (ecoEnabled && messageType === 'text' && text) {
+    const ctxForEco = await prisma.contactContext.findUnique({
+      where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+      select: { metadata: true },
+    });
+    const metaForEco = (ctxForEco?.metadata as Record<string, any> | null) ?? {};
+    const ecoState = metaForEco.ecotrackState as EcotrackState | undefined;
+
+    if (ecoState) {
+      const ecoToken = decrypt(ecoRawToken!);
+      const result = await handleEcotrackMessage(ecoState, text, ecoToken, ecoUrl!);
+      if (result.handled) {
+        const newMeta = { ...metaForEco, ecotrackState: result.newState ?? undefined };
+        await upsertContactContext(connection.id, contactId, { contactName, metadata: newMeta });
+        if (result.responseText) await sendTelegramMessage(token, chatId, result.responseText);
+        await saveInboundOnly({ conversationId: conversation.id, content: text, type: 'text' });
+        return NextResponse.json({ ok: true });
+      }
+    }
   }
 
   // ── Réponses prédéfinies (texte uniquement, 0 token) ─────────────────────
@@ -288,10 +380,52 @@ export async function POST(
               },
               orderBy: { updatedAt: 'desc' },
             });
+            let newOrderId: string;
             if (recentCancelled) {
-              await updateOrCreateOrder(connection, contactId, contactName, orderData, recentCancelled.id);
+              newOrderId = await updateOrCreateOrder(connection, contactId, contactName, orderData, recentCancelled.id);
             } else {
-              await saveOrderFromBot(connection, contactId, contactName, orderData);
+              newOrderId = await saveOrderFromBot(connection, contactId, contactName, orderData);
+            }
+
+            // ── Ecotrack: validate address + start delivery flow ─────────
+            if (ecoEnabled && newOrderId) {
+              try {
+                const ecoToken = decrypt(ecoRawToken!);
+                const { found, suggestions } = await validateLocation(ecoUrl!, ecoToken, orderData.wilaya || '', orderData.commune || '');
+                if (found) {
+                  const newState: EcotrackState = {
+                    step: 'awaiting_delivery_type',
+                    orderId: newOrderId,
+                    orderData,
+                    wilayaId: found.wilayaId,
+                    wilayaName: found.wilayaName,
+                    communeName: found.communeName,
+                    codePostal: found.codePostal,
+                    hasStopDesk: found.hasStopDesk,
+                  };
+                  const currMeta = (contactCtx?.metadata as Record<string, any> | null) ?? {};
+                  await upsertContactContext(connection.id, contactId, { contactName, metadata: { ...currMeta, ecotrackState: newState } });
+                  responseText = `✅ Commande enregistrée !\n\n📍 Livraison à *${found.communeName}*, ${found.wilayaName}.\n\nComment souhaitez-vous recevoir votre colis ?\n1️⃣ Livraison à *domicile*\n${found.hasStopDesk ? '2️⃣ Retrait en *Stop Desk* (agence)' : '2️⃣ Stop Desk _(non disponible dans cette commune)_'}`;
+                } else if (suggestions.length > 0) {
+                  const newState: EcotrackState = {
+                    step: 'awaiting_location_confirm',
+                    orderId: newOrderId,
+                    orderData,
+                    wilayaId: suggestions[0].wilayaId,
+                    wilayaName: suggestions[0].wilayaName,
+                    communeName: suggestions[0].communeName,
+                    codePostal: suggestions[0].codePostal,
+                    hasStopDesk: suggestions[0].hasStopDesk,
+                    suggestions,
+                  };
+                  const currMeta = (contactCtx?.metadata as Record<string, any> | null) ?? {};
+                  await upsertContactContext(connection.id, contactId, { contactName, metadata: { ...currMeta, ecotrackState: newState } });
+                  responseText = buildLocationSuggestionsMsg(suggestions, orderData.commune || '', orderData.wilaya || '');
+                }
+                // If no match: responseText stays as the AI's message, no Ecotrack state
+              } catch (ecoErr) {
+                console.error('[Ecotrack] Location validation error', ecoErr);
+              }
             }
           } catch (e) {
             console.error('[Telegram] Order parse error', e, 'JSON:', jsonStr);
@@ -428,7 +562,7 @@ RÈGLES PRODUITS (STRICTES) :
 ${productDetailsStr ? `DESCRIPTIONS (à n'utiliser QUE si le client demande des détails) :\n${productDetailsStr}` : ''}`;
 }
 
-async function saveOrderFromBot(connection: any, contactId: string, contactName: string | null, data: any) {
+async function saveOrderFromBot(connection: any, contactId: string, contactName: string | null, data: any): Promise<string> {
   // Find product IDs by name
   const allProducts = await prisma.product.findMany({
     where: { userId: connection.userId, isActive: true },
@@ -481,6 +615,7 @@ async function saveOrderFromBot(connection: any, contactId: string, contactName:
   });
 
   console.log(`[Telegram] Order saved: ${order.id} for ${fullName}`);
+  return order.id;
 }
 
 /**
@@ -493,7 +628,7 @@ async function updateOrCreateOrder(
   contactName: string | null,
   data: any,
   existingOrderId?: string
-) {
+): Promise<string> {
   const allProducts = await prisma.product.findMany({
     where: { userId: connection.userId, isActive: true },
     select: { id: true, name: true, price: true },
@@ -529,6 +664,7 @@ async function updateOrCreateOrder(
       },
     });
     console.log(`[Telegram] Order updated: ${existingOrderId} for ${fullName}`);
+    return existingOrderId;
   } else {
     // Find most recent PENDING order for this contact and update it
     const latest = await prisma.order.findFirst({
@@ -548,8 +684,9 @@ async function updateOrCreateOrder(
         },
       });
       console.log(`[Telegram] Order modified in place: ${latest.id} for ${fullName}`);
+      return latest.id;
     } else {
-      await saveOrderFromBot(connection, contactId, contactName, data);
+      return saveOrderFromBot(connection, contactId, contactName, data);
     }
   }
 }

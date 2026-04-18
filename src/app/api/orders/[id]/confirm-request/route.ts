@@ -52,7 +52,12 @@ export async function POST(
 
     await sendTelegramMessage(token, order.contactId, confirmMsg);
 
-    return NextResponse.json({ ok: true });
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { confirmationSentAt: new Date() },
+    });
+
+    return NextResponse.json({ ok: true, confirmationSentAt: new Date() });
   }
 
   return NextResponse.json({ error: 'Platform not supported' }, { status: 400 });
