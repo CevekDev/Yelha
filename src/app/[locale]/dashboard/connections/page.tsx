@@ -104,7 +104,7 @@ function ConnectionsPageInner() {
   const [igForm, setIgForm] = useState({ name: '', botName: 'Assistant', instagramUsername: '', instagramPassword: '' });
 
   // WhatsApp form
-  const [waForm, setWaForm] = useState({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAppId: '', whatsappAppSecret: '', whatsappVerifyToken: '' });
+  const [waForm, setWaForm] = useState({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAccessToken: '', whatsappVerifyToken: '' });
   const [waResult, setWaResult] = useState<{ id: string; webhookUrl: string; verifyToken: string } | null>(null);
 
   // Messenger form
@@ -222,7 +222,7 @@ function ConnectionsPageInner() {
   };
 
   const handleAddWhatsApp = async () => {
-    if (!waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAppId || !waForm.whatsappAppSecret || !waForm.whatsappVerifyToken) return;
+    if (!waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAccessToken || !waForm.whatsappVerifyToken) return;
     setAdding(true);
     try {
       const res = await fetch('/api/connections', {
@@ -238,7 +238,7 @@ function ConnectionsPageInner() {
           webhookUrl: `${baseUrl}/api/webhooks/whatsapp/${json.id}`,
           verifyToken: waForm.whatsappVerifyToken,
         });
-        setWaForm({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAppId: '', whatsappAppSecret: '', whatsappVerifyToken: '' });
+        setWaForm({ name: '', botName: 'Assistant', whatsappPhoneNumberId: '', whatsappAccessToken: '', whatsappVerifyToken: '' });
         setShowAdd(false);
         fetchConnections();
       } else {
@@ -443,27 +443,51 @@ function ConnectionsPageInner() {
                 <button onClick={() => setShowMetaHelp(v => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/[0.02] transition-colors">
                   <div className="flex items-center gap-2">
                     <HelpCircle className="w-3.5 h-3.5" style={{ color: ORANGE }} />
-                    <span className="font-mono text-xs text-white/60">Comment créer une App Meta WhatsApp ?</span>
+                    <span className="font-mono text-xs text-white/60">Comment obtenir le Phone Number ID et le token permanent ?</span>
                   </div>
                   {showMetaHelp ? <ChevronUp className="w-3.5 h-3.5 text-white/30" /> : <ChevronDown className="w-3.5 h-3.5 text-white/30" />}
                 </button>
                 {showMetaHelp && (
                   <div className="px-4 pb-4 border-t border-white/[0.05]">
                     <div className="pt-4 space-y-2.5">
+                      <p className="text-[10px] font-mono text-white/30 uppercase tracking-wider mb-1">Étape 1 — Créer l&apos;app Meta</p>
                       {[
                         { n: '1', text: 'Allez sur developers.facebook.com → "Mes applications" → "Créer une application"' },
-                        { n: '2', text: 'Choisissez le type "Entreprise" et donnez un nom à votre app' },
-                        { n: '3', text: 'Dans le tableau de bord, ajoutez le produit "WhatsApp"' },
-                        { n: '4', text: 'Dans WhatsApp → Configuration API, notez le "Phone Number ID"' },
-                        { n: '5', text: 'Dans Paramètres → Général de votre app, copiez l\'Identifiant de l\'app (App ID) et la Clé secrète (App Secret)' },
-                        { n: '6', text: 'Dans WhatsApp → Configuration → Webhooks, collez votre Webhook URL et Verify Token après connexion ici' },
-                        { n: '7', text: 'Abonnez-vous à l\'événement "messages" dans les webhooks' },
+                        { n: '2', text: 'Choisissez le type "Entreprise" — donnez un nom (ex: MonShopBot)' },
+                        { n: '3', text: 'Tableau de bord → "Ajouter un produit" → WhatsApp → "Configurer"' },
+                        { n: '4', text: 'Dans WhatsApp → Configuration API : copiez le "Phone Number ID"' },
                       ].map(step => (
                         <div key={step.n} className="flex items-start gap-3">
                           <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-mono font-bold" style={{ background: `${WA_COLOR}18`, color: WA_COLOR }}>{step.n}</div>
                           <p className="text-xs font-mono text-white/50 pt-0.5 leading-relaxed">{step.text}</p>
                         </div>
                       ))}
+                      <p className="text-[10px] font-mono text-white/30 uppercase tracking-wider mt-3 mb-1">Étape 2 — Générer un token permanent</p>
+                      {[
+                        { n: '5', text: 'Allez sur business.facebook.com → Paramètres → Utilisateurs → Utilisateurs système' },
+                        { n: '6', text: 'Cliquez "Ajouter" → nommez l\'utilisateur (ex: YelhaBot) → rôle Admin → "Créer utilisateur système"' },
+                        { n: '7', text: 'Cliquez "Générer un nouveau token" → sélectionnez votre app → activez whatsapp_business_messaging + whatsapp_business_management → "Générer le token"' },
+                        { n: '8', text: 'Copiez le token affiché — il ne sera plus visible après. Collez-le dans le champ "Access Token" ci-dessous' },
+                      ].map(step => (
+                        <div key={step.n} className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-mono font-bold" style={{ background: `${WA_COLOR}18`, color: WA_COLOR }}>{step.n}</div>
+                          <p className="text-xs font-mono text-white/50 pt-0.5 leading-relaxed">{step.text}</p>
+                        </div>
+                      ))}
+                      <p className="text-[10px] font-mono text-white/30 uppercase tracking-wider mt-3 mb-1">Étape 3 — Configurer le webhook (après connexion ici)</p>
+                      {[
+                        { n: '9', text: 'Dans WhatsApp → Configuration → section Webhook : collez le Webhook URL + Verify Token affichés après connexion' },
+                        { n: '10', text: 'Abonnez-vous à l\'événement "messages"' },
+                      ].map(step => (
+                        <div key={step.n} className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-mono font-bold" style={{ background: `${WA_COLOR}18`, color: WA_COLOR }}>{step.n}</div>
+                          <p className="text-xs font-mono text-white/50 pt-0.5 leading-relaxed">{step.text}</p>
+                        </div>
+                      ))}
+                      <div className="rounded-lg p-3 mt-3 flex items-start gap-2" style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.15)' }}>
+                        <span className="text-yellow-400 text-xs mt-0.5">⚠️</span>
+                        <p className="text-xs font-mono text-white/40 leading-relaxed">Le token temporaire affiché dans le dashboard expire en <span className="text-white/70">24h</span>. Utilisez obligatoirement le token d&apos;utilisateur système (étapes 5-8) pour un fonctionnement permanent.</p>
+                      </div>
                       <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs font-mono mt-2 transition-colors hover:opacity-80" style={{ color: WA_COLOR }}>
                         <ExternalLink className="w-3 h-3" /> Documentation officielle Meta WhatsApp
                       </a>
@@ -486,21 +510,20 @@ function ConnectionsPageInner() {
                   <input className={INPUT_CLASS} value={waForm.whatsappPhoneNumberId} onChange={e => setWaForm(f => ({ ...f, whatsappPhoneNumberId: e.target.value }))} placeholder="123456789012345" />
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Identifiant de l&apos;app <span className="text-white/20">(Paramètres → Général)</span></label>
-                  <input className={INPUT_CLASS} value={waForm.whatsappAppId} onChange={e => setWaForm(f => ({ ...f, whatsappAppId: e.target.value }))} placeholder="1234567890123456" />
+                  <label className="text-xs text-white/40 font-mono mb-1.5 block">
+                    Access Token permanent <span className="text-white/20">(Business Manager → Utilisateurs système)</span>
+                  </label>
+                  <input className={INPUT_CLASS} type="password" value={waForm.whatsappAccessToken} onChange={e => setWaForm(f => ({ ...f, whatsappAccessToken: e.target.value }))} placeholder="EAAxxxxx..." />
+                  <p className="text-xs text-white/20 mt-1.5 font-mono">⚠️ N&apos;utilisez pas le token temporaire du dashboard — il expire en 24h.</p>
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Clé secrète de l&apos;app <span className="text-white/20">(Paramètres → Général → Afficher)</span></label>
-                  <input className={INPUT_CLASS} type="password" value={waForm.whatsappAppSecret} onChange={e => setWaForm(f => ({ ...f, whatsappAppSecret: e.target.value }))} placeholder="••••••••••••••••••••••••••••••••" />
-                </div>
-                <div>
-                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Verify Token <span className="text-white/20">(choisissez un mot de passe quelconque)</span></label>
+                  <label className="text-xs text-white/40 font-mono mb-1.5 block">Verify Token <span className="text-white/20">(inventez un mot de passe)</span></label>
                   <input className={INPUT_CLASS} value={waForm.whatsappVerifyToken} onChange={e => setWaForm(f => ({ ...f, whatsappVerifyToken: e.target.value }))} placeholder="mon_token_secret_123" />
-                  <p className="text-xs text-white/20 mt-1.5 font-mono">Vous l&apos;utiliserez dans Meta pour valider le webhook. Choisissez n&apos;importe quelle chaîne de &gt;6 caractères.</p>
+                  <p className="text-xs text-white/20 mt-1.5 font-mono">Vous le réutiliserez dans Meta pour valider le webhook.</p>
                 </div>
               </div>
               <div className="flex gap-2 mt-5">
-                <button onClick={handleAddWhatsApp} disabled={adding || !waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAppId || !waForm.whatsappAppSecret || !waForm.whatsappVerifyToken} className="flex items-center gap-2 font-mono text-sm text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 disabled:opacity-40" style={{ background: ORANGE }}>
+                <button onClick={handleAddWhatsApp} disabled={adding || !waForm.name || !waForm.whatsappPhoneNumberId || !waForm.whatsappAccessToken || !waForm.whatsappVerifyToken} className="flex items-center gap-2 font-mono text-sm text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 disabled:opacity-40" style={{ background: ORANGE }}>
                   {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
                   Connecter WhatsApp
                 </button>

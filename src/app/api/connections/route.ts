@@ -14,8 +14,7 @@ const connectionSchema = z.discriminatedUnion('platform', [
     botName: z.string().min(1).max(50).default('Assistant'),
     businessName: z.string().max(100).optional(),
     whatsappPhoneNumberId: z.string().min(1),
-    whatsappAppId: z.string().min(1),
-    whatsappAppSecret: z.string().min(10),
+    whatsappAccessToken: z.string().min(10),
     whatsappVerifyToken: z.string().min(6),
   }),
   z.object({
@@ -104,14 +103,12 @@ export async function POST(req: NextRequest) {
 
   // ── WhatsApp (Meta Cloud API) ─────────────────────────────────────────────
   if (data.platform === 'WHATSAPP') {
-    // App access token = appId|appSecret (valid for WhatsApp Cloud API)
-    const appToken = `${data.whatsappAppId}|${data.whatsappAppSecret}`;
     const validRes = await fetch(
-      `https://graph.facebook.com/v20.0/${data.whatsappPhoneNumberId}?fields=id,display_phone_number&access_token=${appToken}`
+      `https://graph.facebook.com/v20.0/${data.whatsappPhoneNumberId}?fields=id,display_phone_number&access_token=${data.whatsappAccessToken}`
     );
     const validData = await validRes.json();
     if (!validRes.ok || validData.error) {
-      return NextResponse.json({ error: 'App ID, App Secret ou Phone Number ID invalide. Vérifiez vos identifiants Meta.' }, { status: 400 });
+      return NextResponse.json({ error: 'Phone Number ID ou Access Token invalide. Vérifiez vos credentials Meta.' }, { status: 400 });
     }
 
     const connection = await prisma.connection.create({
@@ -122,7 +119,7 @@ export async function POST(req: NextRequest) {
         botName: data.botName,
         businessName: data.businessName,
         whatsappPhoneNumberId: data.whatsappPhoneNumberId,
-        whatsappAccessToken: encrypt(appToken),
+        whatsappAccessToken: encrypt(data.whatsappAccessToken),
         whatsappVerifyToken: encrypt(data.whatsappVerifyToken),
       },
     });
