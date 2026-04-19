@@ -256,7 +256,13 @@ export async function POST(req: NextRequest) {
       { role: 'user' as const, content: inboundContent },
     ];
 
-    const rawResponse = await callDeepSeek(aiMessages, systemPrompt);
+    let rawResponse: string;
+    try {
+      rawResponse = await callDeepSeek(aiMessages, systemPrompt);
+    } catch (err) {
+      console.error('[WA] DeepSeek error', err);
+      return NextResponse.json({ reply: "Désolé, une erreur technique s'est produite. Réessayez dans un instant." });
+    }
 
     // ── HORS_SUJET ──────────────────────────────────────────────────────────
     if (rawResponse.startsWith('[HORS_SUJET]')) {

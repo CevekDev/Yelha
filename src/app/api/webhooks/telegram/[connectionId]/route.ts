@@ -332,7 +332,14 @@ export async function POST(
       { role: 'user' as const, content: inboundContent },
     ];
 
-    const rawResponse = await callDeepSeek(aiMessages, systemPrompt);
+    let rawResponse: string;
+    try {
+      rawResponse = await callDeepSeek(aiMessages, systemPrompt);
+    } catch (err) {
+      console.error('[Telegram] DeepSeek error', err);
+      await sendTelegramMessage(token, chatId, "Désolé, une erreur technique s'est produite. Réessayez dans un instant.");
+      return NextResponse.json({ ok: true });
+    }
     // logCost moved below — only charged if a valid response is produced
 
     // ── Hors sujet → spam score approach ────────────────────────────────

@@ -181,11 +181,21 @@ export async function callDeepSeek(
   });
 
   if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.error(`[DeepSeek] HTTP ${response.status}:`, body.slice(0, 200));
+    if (response.status === 401) throw new Error('DeepSeek: clé API invalide (401)');
+    if (response.status === 402) throw new Error('DeepSeek: crédits insuffisants (402)');
+    if (response.status === 429) throw new Error('DeepSeek: limite de débit atteinte (429)');
     throw new Error(`DeepSeek API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    console.error('[DeepSeek] Empty response:', JSON.stringify(data).slice(0, 200));
+    throw new Error('DeepSeek: réponse vide');
+  }
+  return content;
 }
 
 const PERSONALITY_PRESETS: Record<string, string> = {
