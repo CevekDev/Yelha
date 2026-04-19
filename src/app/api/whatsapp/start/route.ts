@@ -30,12 +30,16 @@ export async function POST(req: NextRequest) {
     update: { waStatus: 'initializing', qrDataUrl: null, isActive: false },
   });
 
-  // Fire-and-forget — do not await the QR generation
-  fetch(`${WA_SERVICE_URL}/init`, {
+  // Await the fetch so Vercel doesn't kill it before Railway receives the request
+  const initRes = await fetch(`${WA_SERVICE_URL}/init`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-whatsapp-secret': WA_SERVICE_SECRET },
     body: JSON.stringify({ connectionId, userId: session.user.id }),
-  }).catch(() => {});
+  }).catch((e) => { console.error('[WA start] fetch error', e); return null; });
+
+  if (!initRes?.ok) {
+    console.error('[WA start] Railway returned', initRes?.status);
+  }
 
   return NextResponse.json({ ok: true });
 }
