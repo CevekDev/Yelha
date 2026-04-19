@@ -12,9 +12,6 @@ const connectionSchema = z.discriminatedUnion('platform', [
     name: z.string().min(1).max(100),
     botName: z.string().min(1).max(50).default('Assistant'),
     businessName: z.string().max(100).optional(),
-    whatsappPhoneNumberId: z.string().min(1),
-    whatsappAccessToken: z.string().min(10),
-    whatsappVerifyToken: z.string().min(6),
   }),
   z.object({
     platform: z.literal('TELEGRAM'),
@@ -101,16 +98,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Instagram DM est réservé aux partenaires YelhaDms.' }, { status: 403 });
   }
 
-  // ── WhatsApp (Meta Cloud API) ─────────────────────────────────────────────
+  // ── WhatsApp (whatsapp-web.js — QR code flow) ────────────────────────────
   if (data.platform === 'WHATSAPP') {
-    const validRes = await fetch(
-      `https://graph.facebook.com/v20.0/${data.whatsappPhoneNumberId}?fields=id,display_phone_number&access_token=${data.whatsappAccessToken}`
-    );
-    const validData = await validRes.json();
-    if (!validRes.ok || validData.error) {
-      return NextResponse.json({ error: 'Phone Number ID ou Access Token invalide. Vérifiez vos credentials Meta.' }, { status: 400 });
-    }
-
     const connection = await prisma.connection.create({
       data: {
         userId: session.user.id,
@@ -118,9 +107,7 @@ export async function POST(req: NextRequest) {
         name: data.name,
         botName: data.botName,
         businessName: data.businessName,
-        whatsappPhoneNumberId: data.whatsappPhoneNumberId,
-        whatsappAccessToken: encrypt(data.whatsappAccessToken),
-        whatsappVerifyToken: encrypt(data.whatsappVerifyToken),
+        isActive: false, // becomes true after QR scan
       },
     });
 
