@@ -1,6 +1,8 @@
 import express, { Request, Response } from 'express';
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import QRCode from 'qrcode';
+import fs from 'fs';
+import path from 'path';
 
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
@@ -52,6 +54,46 @@ function broadcastToSession(connectionId: string, event: string, data: any) {
   }
 }
 
+// ── Purge Chromium cache dirs to free disk space ─────────────────────────────
+function purgeChromeCache() {
+  const sessionsDir = './.whatsapp-sessions';
+  if (!fs.existsSync(sessionsDir)) return;
+
+  // Cache subdirs that Chromium creates but are safe to delete
+  const CACHE_DIRS = ['Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'ShaderCache', 'blob_storage'];
+  let freedBytes = 0;
+
+  const entries = fs.readdirSync(sessionsDir);
+  for (const entry of entries) {
+    const sessionPath = path.join(sessionsDir, entry, 'Default');
+    if (!fs.existsSync(sessionPath)) continue;
+    for (const cacheDir of CACHE_DIRS) {
+      const cachePath = path.join(sessionPath, cacheDir);
+      if (!fs.existsSync(cachePath)) continue;
+      try {
+        const size = getDirSize(cachePath);
+        fs.rmSync(cachePath, { recursive: true, force: true });
+        freedBytes += size;
+      } catch {}
+    }
+  }
+  if (freedBytes > 0) {
+    console.log(`[cleanup] Freed ${(freedBytes / 1024 / 1024).toFixed(1)} MB of Chrome cache`);
+  }
+}
+
+function getDirSize(dir: string): number {
+  let total = 0;
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) total += getDirSize(full);
+      else try { total += fs.statSync(full).size; } catch {}
+    }
+  } catch {}
+  return total;
+}
+
 // ── Create/replace WA client ─────────────────────────────────────────────────
 async function createClient(userId: string, connectionId: string): Promise<void> {
   // Destroy existing if any
@@ -89,6 +131,12 @@ async function createClient(userId: string, connectionId: string): Promise<void>
         '--safebrowsing-disable-auto-update',
         '--ignore-certificate-errors',
         '--disable-plugins',
+        // Disable disk cache to prevent volume from filling up
+        '--disk-cache-size=0',
+        '--media-cache-size=0',
+        '--disable-application-cache',
+        '--disable-offline-load-stale-cache',
+        '--disable-cache',
       ],
     },
   });
@@ -407,5 +455,9 @@ async function reconnectActiveSessions() {
 
 app.listen(PORT, () => {
   console.log(`WhatsApp service running on port ${PORT}`);
+  // Clean Chrome cache on startup (volume was at 98%)
+  purgeChromeCache();
   reconnectActiveSessions();
+  // Purge cache every 6 hours
+  setInterval(purgeChromeCache, 6 * 60 * 60 * 1000);
 });
