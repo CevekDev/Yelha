@@ -64,6 +64,25 @@ async function tryDeleteFromEcotrack(orderId: string) {
   }
 }
 
+async function tryShipOnEcotrack(orderId: string) {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { ecotrackTracking: true, connectionId: true },
+    });
+    if (!order?.ecotrackTracking) return;
+    const conn = await prisma.connection.findUnique({
+      where: { id: order.connectionId },
+      select: { ecotrackUrl: true, ecotrackToken: true },
+    });
+    if (!conn?.ecotrackUrl || !conn?.ecotrackToken) return;
+    const { shipEcotrackOrder } = await import('@/lib/ecotrack');
+    await shipEcotrackOrder(conn.ecotrackUrl, decrypt(conn.ecotrackToken), order.ecotrackTracking);
+  } catch (e) {
+    console.error('[Ecotrack] Ship order error', e);
+  }
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -109,6 +128,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
     await tryDeleteFromEcotrack(params.id);
+  }
+
+  // Ship on Ecotrack when manually setting status to SHIPPED
+  if (status === 'SHIPPED' && order.status !== 'SHIPPED') {
+    await tryShipOnEcotrack(params.id);
   }
 
   const updated = await prisma.order.update({

@@ -468,8 +468,23 @@ export async function POST(
                   const currMeta = (contactCtx?.metadata as Record<string, any> | null) ?? {};
                   await upsertContactContext(connection.id, contactId, { contactName, metadata: { ...currMeta, ecotrackState: newState } });
                   responseText = buildLocationSuggestionsMsg(suggestions, orderData.commune || '', orderData.wilaya || '');
+                } else {
+                  // No match at all — ask user to retype address manually
+                  const newState: EcotrackState = {
+                    step: 'awaiting_address_input',
+                    orderId: newOrderId,
+                    orderData,
+                    wilayaId: 0,
+                    wilayaName: '',
+                    communeName: '',
+                    codePostal: '',
+                    hasStopDesk: false,
+                    retryCount: 0,
+                  };
+                  const currMeta = (contactCtx?.metadata as Record<string, any> | null) ?? {};
+                  await upsertContactContext(connection.id, contactId, { contactName, metadata: { ...currMeta, ecotrackState: newState } });
+                  responseText = `📍 Je n'ai pas pu localiser *${orderData.wilaya || ''}* / *${orderData.commune || ''}*.\n\nVeuillez saisir votre wilaya et commune dans ce format :\n*Wilaya / Commune*\nExemple : *Alger / Bab El Oued*`;
                 }
-                // If no match: responseText stays as the AI's message, no Ecotrack state
               } catch (ecoErr) {
                 console.error('[Ecotrack] Location validation error', ecoErr);
               }

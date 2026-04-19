@@ -8,7 +8,8 @@ export type EcoCommune = { nom: string; wilaya_id: number; code_postal: string; 
 export type EcotrackStep =
   | 'awaiting_location_confirm'
   | 'awaiting_delivery_type'
-  | 'awaiting_stopdesk_choice';
+  | 'awaiting_stopdesk_choice'
+  | 'awaiting_address_input';
 
 export interface EcotrackState {
   step: EcotrackStep;
@@ -20,6 +21,7 @@ export interface EcotrackState {
   codePostal: string;
   hasStopDesk: boolean;
   deliveryType?: 0 | 1;
+  retryCount?: number;
   suggestions?: Array<{ wilayaId: number; wilayaName: string; communeName: string; codePostal: string; hasStopDesk: boolean }>;
   stopDeskAlternatives?: Array<{ nom: string; codePostal: string }>;
 }
@@ -483,6 +485,62 @@ export async function handleEcotrackMessage(
       };
     }
     return { handled: true, responseText: buildDeliveryTypeMsg(state), newState: state };
+  }
+
+  // ── Step: awaiting_address_input ─────────────────────────────────────────
+  // Entered when location not found at all after order creation.
+  // User types "Wilaya / Commune" and we re-validate.
+  if (state.step === 'awaiting_address_input') {
+    // Parse "Wilaya / Commune" or "Wilaya, Commune" or plain text
+    const parts = text.split(/[\/,|]/).map(s => s.trim()).filter(Boolean);
+    const inputWilaya = parts[0] || text.trim();
+    const inputCommune = parts[1] || text.trim();
+
+    const { found, suggestions } = await validateLocation(ecoUrl, ecoToken, inputWilaya, inputCommune);
+
+    if (found) {
+      const newState: EcotrackState = {
+        ...state,
+        step: 'awaiting_delivery_type',
+        wilayaId: found.wilayaId,
+        wilayaName: found.wilayaName,
+        communeName: found.communeName,
+        codePostal: found.codePostal,
+        hasStopDesk: found.hasStopDesk,
+        suggestions: undefined,
+        retryCount: 0,
+      };
+      return { handled: true, responseText: buildDeliveryTypeMsg(found), newState };
+    }
+
+    if (suggestions.length > 0) {
+      const newState: EcotrackState = {
+        ...state,
+        step: 'awaiting_location_confirm',
+        wilayaId: suggestions[0].wilayaId,
+        wilayaName: suggestions[0].wilayaName,
+        communeName: suggestions[0].communeName,
+        codePostal: suggestions[0].codePostal,
+        hasStopDesk: suggestions[0].hasStopDesk,
+        suggestions,
+      };
+      return { handled: true, responseText: buildLocationSuggestionsMsg(suggestions, inputCommune, inputWilaya), newState };
+    }
+
+    // Still not found — allow up to 3 retries
+    const retryCount = (state.retryCount || 0) + 1;
+    if (retryCount >= 3) {
+      return {
+        handled: true,
+        responseText: `❌ Désolé, votre zone n'est pas desservie par notre transporteur. Contactez-nous directement pour finaliser votre commande.`,
+        newState: null,
+      };
+    }
+    return {
+      handled: true,
+      responseText: `❌ Introuvable. Réessayez avec le format :\n*Wilaya / Commune*\nExemple : *Alger / Bab El Oued*`,
+      newState: { ...state, step: 'awaiting_address_input', retryCount },
+    };
   }
 
   // ── Step: awaiting_stopdesk_choice ────────────────────────────────────────

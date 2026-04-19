@@ -385,13 +385,33 @@ export async function POST(req: NextRequest) {
                     hasStopDesk: suggestions[0].hasStopDesk,
                     suggestions,
                   };
-                  const currCtx = await prisma.contactContext.findUnique({
+                  const currCtx2 = await prisma.contactContext.findUnique({
                     where: { connectionId_contactId: { connectionId: connection.id, contactId } },
                     select: { metadata: true },
                   });
-                  const currMeta = (currCtx?.metadata as Record<string, any> | null) ?? {};
-                  await upsertContactContext(connection.id, contactId, { contactName, metadata: { ...currMeta, ecotrackState: newState } });
+                  const currMeta2 = (currCtx2?.metadata as Record<string, any> | null) ?? {};
+                  await upsertContactContext(connection.id, contactId, { contactName, metadata: { ...currMeta2, ecotrackState: newState } });
                   responseText = buildLocationSuggestionsMsg(suggestions, orderData.commune || '', orderData.wilaya || '');
+                } else {
+                  // No match at all — ask user to retype address manually
+                  const newState: EcotrackState = {
+                    step: 'awaiting_address_input',
+                    orderId: newOrderId,
+                    orderData,
+                    wilayaId: 0,
+                    wilayaName: '',
+                    communeName: '',
+                    codePostal: '',
+                    hasStopDesk: false,
+                    retryCount: 0,
+                  };
+                  const currCtx3 = await prisma.contactContext.findUnique({
+                    where: { connectionId_contactId: { connectionId: connection.id, contactId } },
+                    select: { metadata: true },
+                  });
+                  const currMeta3 = (currCtx3?.metadata as Record<string, any> | null) ?? {};
+                  await upsertContactContext(connection.id, contactId, { contactName, metadata: { ...currMeta3, ecotrackState: newState } });
+                  responseText = `📍 Je n'ai pas pu localiser *${orderData.wilaya || ''}* / *${orderData.commune || ''}*.\n\nVeuillez saisir votre wilaya et commune dans ce format :\n*Wilaya / Commune*\nExemple : *Alger / Bab El Oued*`;
                 }
               } catch (ecoErr) { console.error('[WA] Ecotrack location error', ecoErr); }
             }
