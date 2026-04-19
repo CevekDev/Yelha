@@ -68,6 +68,7 @@ async function createClient(userId: string, connectionId: string): Promise<void>
     }),
     puppeteer: {
       headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
