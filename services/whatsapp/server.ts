@@ -338,6 +338,28 @@ app.get('/connect', requireSecret, async (req: Request, res: Response) => {
   }
 });
 
+// Send message endpoint — called by Next.js for manual replies & auto-confirm
+app.post('/send', requireSecret, async (req: Request, res: Response) => {
+  const { connectionId, contactId, message } = req.body as { connectionId: string; contactId: string; message: string };
+  if (!connectionId || !contactId || !message) {
+    res.status(400).json({ error: 'Missing params' });
+    return;
+  }
+  const session = sessions.get(connectionId);
+  if (!session || session.status !== 'ready') {
+    res.status(400).json({ error: 'Session not ready' });
+    return;
+  }
+  try {
+    const chat = await session.client.getChatById(contactId);
+    await chat.sendMessage(message);
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error(`[${connectionId}] Send error`, err);
+    res.status(500).json({ error: err?.message || 'Send failed' });
+  }
+});
+
 // Disconnect endpoint
 app.post('/disconnect', requireSecret, async (req: Request, res: Response) => {
   const { connectionId } = req.body as { connectionId: string };

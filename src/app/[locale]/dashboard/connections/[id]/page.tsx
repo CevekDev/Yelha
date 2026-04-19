@@ -39,6 +39,7 @@ export default function ConnectionConfigPage() {
   // Delivery fee + auto-confirm
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [autoConfirmDelay, setAutoConfirmDelay] = useState(0);
+  const [deliveryPricingText, setDeliveryPricingText] = useState('');
 
   // Ecotrack
   const [ecotrackUrl, setEcotrackUrl] = useState('');
@@ -56,6 +57,7 @@ export default function ConnectionConfigPage() {
     setForm({ name: data.name, businessName: data.businessName || '', botName: data.botName || 'Assistant', customInstructions: data.customInstructions || '', welcomeMessage: data.welcomeMessage || '', awayMessage: data.awayMessage || '', botPersonality: data.botPersonality || { formality: 5, friendliness: 5, responseLength: 5, emojiUsage: 3 }, isActive: data.isActive });
     setDeliveryFee(data.deliveryFee ?? 0);
     setAutoConfirmDelay(data.autoConfirmDelay ?? 0);
+    setDeliveryPricingText(data.deliveryPricingText || '');
     setPredefinedMessages(data.predefinedMessages || []);
     // Fetch Ecotrack config
     const eco = await fetch(`/api/connections/${id}/ecotrack`).then(r => r.json()).catch(() => ({}));
@@ -68,7 +70,7 @@ export default function ConnectionConfigPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/connections/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, deliveryFee, autoConfirmDelay }) });
+      const res = await fetch(`/api/connections/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, deliveryFee, autoConfirmDelay, deliveryPricingText }) });
       if (res.ok) toast({ title: tCommon('success'), description: 'Configuration saved!' });
       else toast({ title: tCommon('error'), variant: 'destructive' });
     } finally { setSaving(false); }
@@ -162,8 +164,23 @@ export default function ConnectionConfigPage() {
         <CardHeader><CardTitle>Livraison</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label>Frais de livraison (DA) <span className="text-xs text-muted-foreground">— affiché au client dans le récapitulatif</span></Label>
+            <Label>Frais de livraison par défaut (DA) <span className="text-xs text-muted-foreground">— utilisé si aucune wilaya ne correspond</span></Label>
             <Input type="number" min={0} value={deliveryFee} onChange={e => setDeliveryFee(Number(e.target.value))} placeholder="0" className="mt-1 max-w-[160px]" />
+          </div>
+          <div>
+            <Label>
+              Tarification par wilaya
+              <span className="text-xs text-muted-foreground ml-2">— une wilaya par ligne, format <code>Wilaya: prix</code></span>
+            </Label>
+            <textarea
+              className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[120px] resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono"
+              value={deliveryPricingText}
+              onChange={e => setDeliveryPricingText(e.target.value)}
+              placeholder={"Alger: 400\nOran: 500\nAnnaba: 550\nAutres: 700"}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Si une compagnie de livraison (Ecotrack) est connectée, le prix est fourni automatiquement par leur API et ce tableau est ignoré.
+            </p>
           </div>
           <div>
             <Label>Confirmation automatique après <span className="text-xs text-muted-foreground">— heures après la commande (0 = désactivé)</span></Label>
@@ -172,7 +189,7 @@ export default function ConnectionConfigPage() {
               <span className="text-sm text-muted-foreground">heures</span>
             </div>
             {autoConfirmDelay > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">Le bot enverra automatiquement un message de confirmation à chaque nouveau client {autoConfirmDelay}h après la commande.</p>
+              <p className="text-xs text-muted-foreground mt-1">Le bot enverra automatiquement un message de confirmation {autoConfirmDelay}h après la commande.</p>
             )}
           </div>
         </CardContent>

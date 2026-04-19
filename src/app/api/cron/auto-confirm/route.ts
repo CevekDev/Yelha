@@ -4,6 +4,18 @@ import { decrypt } from '@/lib/encryption';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { sendMessengerMessage } from '@/lib/messenger';
 
+const WA_SERVICE_URL = process.env.WHATSAPP_SERVICE_URL!;
+const WA_SERVICE_SECRET = process.env.WHATSAPP_SERVICE_SECRET!;
+
+async function sendViaRailway(connectionId: string, contactId: string, message: string) {
+  const res = await fetch(`${WA_SERVICE_URL}/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-whatsapp-secret': WA_SERVICE_SECRET },
+    body: JSON.stringify({ connectionId, contactId, message }),
+  });
+  if (!res.ok) throw new Error(`Railway send failed: ${res.status}`);
+}
+
 async function sendTelegramMessage(token: string, chatId: string, text: string) {
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
@@ -30,6 +42,7 @@ export async function POST(req: NextRequest) {
     include: {
       connection: {
         select: {
+          id: true,
           telegramBotToken: true,
           whatsappPhoneNumberId: true,
           whatsappAccessToken: true,
@@ -73,9 +86,16 @@ export async function POST(req: NextRequest) {
         const token = decrypt(order.connection.telegramBotToken);
         await sendTelegramMessage(token, order.contactId, htmlMsg);
       } else if (platform === 'WHATSAPP') {
-        if (!order.connection.whatsappPhoneNumberId || !order.connection.whatsappAccessToken) continue;
-        const token = decrypt(order.connection.whatsappAccessToken);
-        await sendWhatsAppMessage(order.connection.whatsappPhoneNumberId, token, order.contactId, plainMsg);
+        if (order.connection.whatsappPhoneNumberId && order.connection.whatsappAccessToken) {
+          // Meta WhatsApp API
+          const token = decrypt(order.connection.whatsappAccessToken);
+          await sendWhatsAppMessage(order.connection.whatsappPhoneNumberId, token, order.contactId, plainMsg);
+        } else if (WA_SERVICE_URL && WA_SERVICE_SECRET) {
+          // WhatsApp Web.js via Railway
+          await sendViaRailway(order.connection.id, order.contactId, plainMsg);
+        } else {
+          continue;
+        }
       } else if (platform === 'FACEBOOK') {
         if (!order.connection.messengerAccessToken) continue;
         const token = decrypt(order.connection.messengerAccessToken);

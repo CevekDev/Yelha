@@ -27,6 +27,7 @@ const updateSchema = z.object({
   isActive: z.boolean().optional(),
   deliveryFee: z.number().min(0).max(100000).optional(),
   autoConfirmDelay: z.number().int().min(0).max(8760).optional(),
+  deliveryPricingText: z.string().max(5000).optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {

@@ -210,7 +210,8 @@ model Connection {
   ecotrackToken        String?   @db.Text  // AES-256-GCM encrypted
   ecotrackAutoShip     Boolean   @default(false)
   autoConfirmDelay     Int?      @default(0)  // heures avant envoi auto confirmation (0 = désactivé)
-  deliveryFee          Float?    @default(0) // frais de livraison DA
+  deliveryFee          Float?    @default(0) // frais de livraison DA (défaut)
+  deliveryPricingText  String?   @db.Text    // "Alger:400\nOran:500\nAutres:700"
 
   // Business hours
   businessHours        Json?

@@ -324,6 +324,7 @@ export async function POST(
       buildContactContextString(contactCtx),
       isFirstMessage,
       (connection as any).deliveryFee ?? 0,
+      (connection as any).deliveryPricingText ?? null,
     );
 
     const aiMessages = [
@@ -580,7 +581,7 @@ async function sendTelegramMessage(token: string, chatId: number, text: string) 
   });
 }
 
-async function buildTelegramSystemPrompt(connection: any, contactContext: string, isFirstMessage: boolean, deliveryFee = 0): Promise<string> {
+async function buildTelegramSystemPrompt(connection: any, contactContext: string, isFirstMessage: boolean, deliveryFee = 0, deliveryPricingText?: string | null): Promise<string> {
   const predefinedStr = connection.predefinedMessages
     .map((m: any) => `Mots-clés: ${m.keywords.join(', ')}\nRéponse: ${m.response}`)
     .join('\n---\n');
@@ -633,7 +634,13 @@ RÈGLES PRODUITS (STRICTES) :
 - ❌ N'invente JAMAIS un produit absent de cette liste.
 - Si le client demande "quoi comme produits" → liste les noms + prix uniquement.
 
-${productDetailsStr ? `DESCRIPTIONS (à n'utiliser QUE si le client demande des détails) :\n${productDetailsStr}` : ''}`;
+${productDetailsStr ? `DESCRIPTIONS (à n'utiliser QUE si le client demande des détails) :\n${productDetailsStr}` : ''}
+
+${deliveryPricingText && deliveryPricingText.trim() ? `TARIFICATION LIVRAISON PAR WILAYA :
+${deliveryPricingText.trim()}
+- Utilise ce tableau pour calculer les frais de livraison selon la wilaya du client.
+- Si la wilaya n'est pas listée, utilise le tarif "Autres" ou la valeur par défaut.
+- Inclus le frais de livraison dans le récapitulatif de commande.` : ''}`;
 }
 
 async function saveOrderFromBot(connection: any, contactId: string, contactName: string | null, data: any): Promise<string> {

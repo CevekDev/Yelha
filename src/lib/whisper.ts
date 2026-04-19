@@ -4,10 +4,13 @@ import FormData from 'form-data';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
+  // Normalize mime type — WhatsApp sends "audio/ogg; codecs=opus"
+  const baseMime = mimeType.split(';')[0].trim();
   const allowedMimeTypes = ['audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm'];
-  if (!allowedMimeTypes.includes(mimeType)) {
+  if (!allowedMimeTypes.includes(baseMime)) {
     throw new Error('Invalid audio MIME type');
   }
+  mimeType = baseMime;
 
   if (audioBuffer.length > 10 * 1024 * 1024) {
     throw new Error('Audio file too large (max 10MB)');

@@ -7,8 +7,9 @@ import {
   Plus, Send, Trash2, Loader2, Clock,
   Instagram, HelpCircle,
   ChevronDown, ChevronUp,
-  Bot, Hash, CheckCircle, Smartphone,
+  Bot, Hash, CheckCircle, Smartphone, Settings,
 } from 'lucide-react';
+import Link from 'next/link';
 import { ConnectWhatsAppModal } from '@/components/whatsapp/connect-modal';
 
 const ORANGE = '#FF6B2C';
@@ -305,7 +306,12 @@ function ConnectionsPageInner() {
                     <><Hash className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" /><span className="text-xs font-mono text-yellow-400/70">En attente d&apos;un message...</span></>
                   )}
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-between">
+                  <Link href={`/${params.locale}/dashboard/connections/${conn.id}`}>
+                    <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-white/20 hover:bg-white/[0.04] text-white/40 hover:text-white font-mono text-xs transition-all">
+                      <Settings className="w-3.5 h-3.5" /> Réglages
+                    </button>
+                  </Link>
                   <button onClick={() => handleDelete(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 font-mono text-xs transition-all">
                     <Trash2 className="w-3.5 h-3.5" /> Supprimer
                   </button>
@@ -361,16 +367,23 @@ function ConnectionsPageInner() {
                       <><Smartphone className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" /><span className="text-xs font-mono text-yellow-400/70">Non connecté — scannez le QR</span></>
                     )}
                   </div>
-                  <div className="flex justify-between">
-                    {isConnected ? (
-                      <button onClick={() => handleDisconnectWhatsApp(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 font-mono text-xs transition-all">
-                        Déconnecter
-                      </button>
-                    ) : (
-                      <button onClick={() => setWaModalConnectionId(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-mono text-xs text-white transition-all hover:opacity-90" style={{ background: `${WA_COLOR}20`, color: WA_COLOR, border: `1px solid ${WA_COLOR}30` }}>
-                        <Smartphone className="w-3.5 h-3.5" /> Scanner QR
-                      </button>
-                    )}
+                  <div className="flex justify-between flex-wrap gap-2">
+                    <div className="flex gap-2">
+                      <Link href={`/${params.locale}/dashboard/connections/${conn.id}`}>
+                        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-white/20 hover:bg-white/[0.04] text-white/40 hover:text-white font-mono text-xs transition-all">
+                          <Settings className="w-3.5 h-3.5" /> Réglages
+                        </button>
+                      </Link>
+                      {isConnected ? (
+                        <button onClick={() => handleDisconnectWhatsApp(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 font-mono text-xs transition-all">
+                          Déconnecter
+                        </button>
+                      ) : (
+                        <button onClick={() => setWaModalConnectionId(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-mono text-xs text-white transition-all hover:opacity-90" style={{ background: `${WA_COLOR}20`, color: WA_COLOR, border: `1px solid ${WA_COLOR}30` }}>
+                          <Smartphone className="w-3.5 h-3.5" /> Scanner QR
+                        </button>
+                      )}
+                    </div>
                     <button onClick={() => handleDelete(conn.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.06] hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 font-mono text-xs transition-all">
                       <Trash2 className="w-3.5 h-3.5" /> Supprimer
                     </button>
