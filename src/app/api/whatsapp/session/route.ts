@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 // Internal endpoint called by the WhatsApp microservice to persist session state
 export async function POST(req: NextRequest) {
   const secret = req.headers.get('x-whatsapp-secret');
-  if (!secret || secret !== process.env.WHATSAPP_SERVICE_SECRET) {
+  const expected = process.env.WHATSAPP_SERVICE_SECRET;
+  if (!secret || !expected) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const secretBuf = Buffer.from(secret);
+  const expectedBuf = Buffer.from(expected);
+  if (secretBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(secretBuf, expectedBuf)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

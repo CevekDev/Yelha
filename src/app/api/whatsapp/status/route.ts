@@ -11,6 +11,13 @@ export async function GET(request: NextRequest) {
   const connectionId = searchParams.get('connectionId');
   if (!connectionId) return NextResponse.json({ error: 'Missing connectionId' }, { status: 400 });
 
+  // Verify the connection belongs to the authenticated user
+  const connection = await prisma.connection.findFirst({
+    where: { id: connectionId, userId: session.user.id, platform: 'WHATSAPP' },
+    select: { id: true },
+  });
+  if (!connection) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   const waSession = await prisma.whatsAppSession.findUnique({
     where: { connectionId },
     select: { phoneNumber: true, displayName: true, isActive: true, lastSeen: true, waStatus: true, qrDataUrl: true },

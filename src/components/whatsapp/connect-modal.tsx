@@ -16,10 +16,18 @@ export function ConnectWhatsAppModal({ connectionId, onConnected, onClose }: Pro
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startedRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Use a ref to read the CURRENT status inside async callbacks (avoids stale closure)
+  const statusRef = useRef<'loading' | 'qr' | 'connected' | 'error'>('loading');
+
+  const setStatusSafe = (s: typeof status) => {
+    statusRef.current = s;
+    setStatus(s);
+  };
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
   };
 
   const poll = async () => {
@@ -31,31 +39,34 @@ export function ConnectWhatsAppModal({ connectionId, onConnected, onClose }: Pro
       if (data.isActive) {
         stopPolling();
         setPhoneNumber(data.phoneNumber);
-        setStatus('connected');
+        setStatusSafe('connected');
         onConnected(data.phoneNumber);
         return;
       }
 
       if (data.waStatus === 'qr' && data.qrDataUrl) {
         setQrCode(data.qrDataUrl);
-        setStatus('qr');
+        setStatusSafe('qr');
         return;
       }
 
       if (data.waStatus === 'disconnected' || data.waStatus === 'error') {
         stopPolling();
-        setStatus('error');
-        setErrorMsg(data.waStatus === 'error' ? 'Puppeteer a planté sur Railway — vérifiez les logs.' : 'Session déconnectée.');
+        setStatusSafe('error');
+        setErrorMsg(
+          data.waStatus === 'error'
+            ? 'Le service WhatsApp a rencontré une erreur — vérifiez les logs.'
+            : 'Session déconnectée. Le QR a peut-être expiré, réessayez.'
+        );
       }
     } catch {
-      // ignore transient errors, keep polling
+      // ignore transient network errors, keep polling
     }
   };
 
   const start = async () => {
     stopPolling();
-    startedRef.current = true;
-    setStatus('loading');
+    setStatusSafe('loading');
     setQrCode(null);
     setErrorMsg('');
 
@@ -67,17 +78,17 @@ export function ConnectWhatsAppModal({ connectionId, onConnected, onClose }: Pro
 
     if (!res.ok) {
       const { error } = await res.json().catch(() => ({ error: 'Erreur de démarrage' }));
-      setStatus('error');
+      setStatusSafe('error');
       setErrorMsg(error || 'Service WhatsApp indisponible');
       return;
     }
 
-    // Poll every 2s for up to 3 minutes
+    // Poll every 2s, abort after 3 minutes using statusRef to avoid stale closure
     pollRef.current = setInterval(poll, 2000);
-    setTimeout(() => {
-      if (status !== 'connected') {
+    timeoutRef.current = setTimeout(() => {
+      if (statusRef.current !== 'connected') {
         stopPolling();
-        setStatus('error');
+        setStatusSafe('error');
         setErrorMsg('Délai dépassé — réessayez.');
       }
     }, 180_000);
@@ -115,6 +126,7 @@ export function ConnectWhatsAppModal({ connectionId, onConnected, onClose }: Pro
             <>
               <div className="w-12 h-12 rounded-full border-2 border-white/10 animate-spin" style={{ borderTopColor: WA_COLOR }} />
               <p className="text-sm font-mono text-white/40">Démarrage de WhatsApp...</p>
+              <p className="text-xs font-mono text-white/20">Génération du QR code en cours (10-20 s)</p>
             </>
           )}
 

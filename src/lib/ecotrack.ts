@@ -360,8 +360,12 @@ export async function finalizeEcotrackOrder(
   const nom = [orderData.prenom, orderData.nom].filter(Boolean).join(' ') || 'Client';
   const phone = (orderData.telephone || '').replace(/\D/g, '').slice(-10);
   const adresse = orderData.adresse || `${orderData.commune || ''} ${orderData.wilaya || ''}`.trim() || communeName;
-  const montant = orderData.total || 0;
   const produit = (orderData.produits || []).map((p: any) => `${p.nom} x${p.quantite}`).join(', ');
+
+  // Use the already-persisted order total (correctly computed from product prices in DB)
+  // orderData.total is unreliable — the AI JSON may not include it
+  const dbOrder = await prisma.order.findUnique({ where: { id: orderId }, select: { totalAmount: true } });
+  const montant = dbOrder?.totalAmount ?? 0;
 
   const result = await createEcotrackOrder(ecoUrl, ecoToken, {
     nom_client: nom,
