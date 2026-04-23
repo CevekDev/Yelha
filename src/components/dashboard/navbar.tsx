@@ -40,7 +40,7 @@ export function DashboardNavbar({ onMenuClick, dashTheme = 'dark', onCycleTheme 
         setBalance(u.tokenBalance ?? 0);
         setUnlimited(u.unlimitedTokens ?? false);
       })
-      .catch(() => {});
+      .catch(() => { setBalance(0); });
   }, []);
 
   return (

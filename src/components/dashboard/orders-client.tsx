@@ -613,7 +613,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Order[]
                         {order.scheduledConfirmAt && order.status === 'PENDING' && !order.confirmationSentAt && (
                           <span className="font-mono text-[10px] text-purple-400/80 flex items-center gap-1">
                             <CalendarClock className="w-2.5 h-2.5" />
-                            Auto {new Date(order.scheduledConfirmAt).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' })}
+                            Auto {new Date(order.scheduledConfirmAt).toLocaleString('fr-DZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           </span>
                         )}
                         {order.confirmationSentAt && order.status === 'PENDING' && (

@@ -137,7 +137,13 @@ export default function ConversationsClient({ connections }: { connections: Conn
   const [bulkMode, setBulkMode] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Build a contactId → profilePhotoUrl map from the pre-loaded contactContexts
   const photoMap = useMemo(() => buildPhotoMap(selectedConnection), [selectedConnection]);
@@ -254,7 +260,7 @@ export default function ConversationsClient({ connections }: { connections: Conn
         await loadMessages(selectedConv.id, selectedConnection.id, selectedConv.contactId);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Erreur lors de l\'envoi');
+        showToast(err.error || 'Erreur lors de l\'envoi', false);
       }
     } finally {
       setSending(false);
@@ -279,6 +285,12 @@ export default function ConversationsClient({ connections }: { connections: Conn
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl font-mono text-sm font-semibold shadow-xl border ${toast.ok ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+          {toast.msg}
+        </div>
+      )}
       {/* Compact stats + bulk bar */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-2">
