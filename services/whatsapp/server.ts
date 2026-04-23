@@ -414,6 +414,7 @@ app.get('/connect', requireSecret, async (req: Request, res: Response) => {
       phoneNumber: null,
       displayName: null,
       intentionalDisconnect: false,
+      reconnectAttempts: 0,
       sseListeners: new Set([listener]),
     };
     sessions.set(connectionId, tempState);
