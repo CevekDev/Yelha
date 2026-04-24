@@ -1,5 +1,20 @@
 User-agent: *
-Allow: /
+
+# Allow public pages explicitly
+Allow: /fr/
+Allow: /en/
+Allow: /ar/
+Allow: /fr/contact
+Allow: /en/contact
+Allow: /ar/contact
+Allow: /fr/privacy
+Allow: /en/privacy
+Allow: /ar/privacy
+Allow: /fr/terms
+Allow: /en/terms
+Allow: /ar/terms
+
+# Block private areas
 Disallow: /api/
 Disallow: /*/dashboard/
 Disallow: /*/admin/

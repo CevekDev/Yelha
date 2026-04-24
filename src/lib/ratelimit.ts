@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 
 let redis: Redis | null = null;
 
-function getRedis() {
+export function getRedis() {
   if (!redis) {
     redis = new Redis({
       url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -26,6 +26,14 @@ export const apiRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(100, '1 m'),
   analytics: true,
   prefix: 'ratelimit:api',
+});
+
+/** Strict per-email rate limit for 2FA verification — prevents multi-IP brute force */
+export const twoFARatelimit = new Ratelimit({
+  redis: getRedis(),
+  limiter: Ratelimit.slidingWindow(10, '30 m'),
+  analytics: true,
+  prefix: 'ratelimit:2fa:email',
 });
 
 export function getRateLimitKey(req: NextRequest, userId?: string): string {

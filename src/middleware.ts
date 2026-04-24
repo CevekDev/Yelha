@@ -23,12 +23,14 @@ export function middleware(request: NextRequest) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      // 'unsafe-inline' required for Next.js inline scripts (theme init, JSON-LD)
+      // 'unsafe-eval' intentionally removed — not needed in production builds
+      "script-src 'self' 'unsafe-inline' https://accounts.google.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: blob:",
-      "connect-src 'self' https://api.deepseek.com https://api.openai.com https://pay.chargily.net",
-      "frame-src https://pay.chargily.net",
+      "connect-src 'self' https://api.deepseek.com https://api.openai.com https://pay.chargily.net https://accounts.google.com",
+      "frame-src https://pay.chargily.net https://accounts.google.com",
     ].join('; ')
   );
 

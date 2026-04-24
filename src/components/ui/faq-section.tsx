@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
-const FAQ_ITEMS = [
+export const FAQ_ITEMS = [
   {
     q: 'Comment fonctionne YelhaDms ?',
     a: "YelhaDms connecte votre bot Telegram à une IA avancée. Vos clients envoient des messages, le bot répond automatiquement, gère les commandes et répond aux questions sur vos produits — 24h/24.",

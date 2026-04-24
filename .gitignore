@@ -43,3 +43,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Claude Code local config — NEVER commit (may contain DB credentials)
+.claude/

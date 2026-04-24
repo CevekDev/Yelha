@@ -46,6 +46,16 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { connectionId: string } }
 ) {
+  // ── Verify Telegram secret token (prevents fake webhook injections) ───────
+  // Set TELEGRAM_WEBHOOK_SECRET in env and pass it to setWebhook as secret_token
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (expectedSecret) {
+    const receivedSecret = req.headers.get('x-telegram-bot-api-secret-token');
+    if (!receivedSecret || receivedSecret !== expectedSecret) {
+      return NextResponse.json({ ok: true }); // 200 — don't reveal rejection to attacker
+    }
+  }
+
   const body = await req.json();
 
   const connection = await prisma.connection.findFirst({

@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { MynaHero } from '@/components/ui/myna-hero';
 import YelhaPricing from '@/components/ui/yelha-pricing';
 import { Bot } from 'lucide-react';
-import { FaqSection } from '@/components/ui/faq-section';
+import { FaqSection, FAQ_ITEMS } from '@/components/ui/faq-section';
 import { LandingAnimated } from '@/components/ui/landing-animated';
 
 const ORANGE = '#FF6B2C';
@@ -21,8 +21,23 @@ export default async function LandingPage({ params: { locale } }: { params: { lo
     { title: t('features.security.title'), desc: t('features.security.desc') },
   ];
 
+  // ── FAQPage JSON-LD (rich snippets in Google — 15-30% CTR boost on mobile) ──
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ_ITEMS.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-[#0A0A0A]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       {/* ── Hero (dark, animated) ── */}
       <MynaHero locale={locale} />
 

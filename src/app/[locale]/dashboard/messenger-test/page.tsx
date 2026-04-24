@@ -10,6 +10,11 @@ export default async function MessengerTestPage({
 }: {
   params: { locale: string };
 }) {
+  // Block debug page in production — dev/staging only
+  if (process.env.NODE_ENV === 'production') {
+    redirect(`/${locale}/dashboard`);
+  }
+
   const session = await getServerSession(authOptions);
   if (!session) redirect(`/${locale}/auth/signin`);
 

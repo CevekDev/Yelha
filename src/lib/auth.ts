@@ -5,6 +5,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 import { sendWelcomeEmail } from './resend';
+import { getRedis } from './ratelimit';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -95,8 +96,23 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
 
-        // ── Path A: 2FA verification already done ──
+        // ── Ban check — applies to ALL login paths ──────────────────────────
+        if ((user as any).isBanned) {
+          throw new Error('ACCOUNT_BANNED');
+        }
+
+        // ── Path A: 2FA verification — verify server-side one-shot Redis token ──
+        // (prevents client-side bypass by sending twoFactorVerified:'true' directly)
         if (twoFactorVerified === 'true') {
+          try {
+            const redis = getRedis();
+            const key = `2fa_ok:${user.id}`;
+            const ok = await redis.get(key);
+            if (!ok) return null; // No server-side record — reject bypass attempt
+            await redis.del(key); // One-shot: consumed immediately
+          } catch {
+            return null; // Fail closed — if Redis is unavailable, deny access
+          }
           return {
             id: user.id,
             email: user.email,
@@ -241,6 +257,14 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (token) {
+        // Invalidate sessions of banned users on every request
+        if (token.id) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { isBanned: true },
+          });
+          if ((dbUser as any)?.isBanned) return { ...session, user: { ...session.user, error: 'ACCOUNT_BANNED' } } as any;
+        }
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.twoFactorEnabled = token.twoFactorEnabled as boolean;
