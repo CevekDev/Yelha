@@ -27,7 +27,7 @@ export function UpgradeModal({ requiredPlan, featureName, onClose }: UpgradeModa
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+      <div className="relative w-full max-w-sm border border-white/[0.08] rounded-2xl p-6 shadow-2xl" style={{ background: 'var(--dt-surface)' }}>
         <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06] transition-all">
           <X className="w-4 h-4" />
         </button>

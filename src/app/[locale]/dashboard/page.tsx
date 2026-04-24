@@ -3,7 +3,9 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
-import { Plug, MessageSquare, Coins, TrendingUp } from 'lucide-react';
+import {
+  Plug, MessageSquare, Coins, TrendingUp, Zap, BarChart3,
+} from 'lucide-react';
 import Link from 'next/link';
 
 const ORANGE = '#FF6B2C';
@@ -70,29 +72,57 @@ export default async function DashboardPage({ params: { locale } }: { params: { 
 
   const t = await getTranslations('dashboard');
 
-  const [user, connectionsCount, todayMessages, totalMessages, activity, platformStats] =
-    await Promise.all([
-      prisma.user.findUnique({
-        where: { id: session!.user.id },
-        select: { tokenBalance: true, name: true, unlimitedTokens: true },
-      }),
-      prisma.connection.count({ where: { userId: session!.user.id, isActive: true } }),
-      prisma.message.count({
-        where: {
-          conversation: { connection: { userId: session!.user.id } },
-          direction: 'inbound',
-          createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-        },
-      }),
-      prisma.message.count({
-        where: {
-          direction: 'inbound',
-          conversation: { connection: { userId: session!.user.id } },
-        },
-      }),
-      getLast7DaysActivity(session!.user.id),
-      getPlatformStats(session!.user.id),
-    ]);
+  const [
+    user,
+    connectionsCount,
+    todayMessages,
+    totalMessages,
+    activity,
+    platformStats,
+    tokensUsedAgg,
+    tokensPurchasedAgg,
+    connections,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session!.user.id },
+      select: { tokenBalance: true, name: true, unlimitedTokens: true },
+    }),
+    prisma.connection.count({ where: { userId: session!.user.id, isActive: true } }),
+    prisma.message.count({
+      where: {
+        conversation: { connection: { userId: session!.user.id } },
+        direction: 'inbound',
+        createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+      },
+    }),
+    prisma.message.count({
+      where: {
+        direction: 'inbound',
+        conversation: { connection: { userId: session!.user.id } },
+      },
+    }),
+    getLast7DaysActivity(session!.user.id),
+    getPlatformStats(session!.user.id),
+    prisma.tokenTransaction.aggregate({
+      where: { userId: session!.user.id, type: 'USAGE' },
+      _sum: { amount: true },
+    }),
+    prisma.tokenTransaction.aggregate({
+      where: { userId: session!.user.id, type: 'PURCHASE' },
+      _sum: { amount: true },
+    }),
+    prisma.connection.findMany({
+      where: { userId: session!.user.id },
+      include: { _count: { select: { conversations: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  const tokensUsed = Math.abs(tokensUsedAgg._sum.amount || 0);
+  const tokensBought = tokensPurchasedAgg._sum.amount || 0;
+  const usageRatePct = tokensBought > 0
+    ? Math.min(Math.round((tokensUsed / tokensBought) * 100), 100)
+    : 0;
 
   const stats = [
     {
@@ -127,14 +157,7 @@ export default async function DashboardPage({ params: { locale } }: { params: { 
 
   // Build SVG sparkline (100×40 viewBox)
   const maxCount = Math.max(...activity.map((d) => d.count), 1);
-  const W = 200;
-  const H = 40;
-  const points = activity.map((d, i) => {
-    const x = (i / (activity.length - 1)) * W;
-    const y = H - (d.count / maxCount) * (H - 4) - 2;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const polyline = points.join(' ');
+  const maxConversations = Math.max(...connections.map((c) => c._count.conversations), 1);
 
   return (
     <div className="space-y-8">
@@ -255,6 +278,86 @@ export default async function DashboardPage({ params: { locale } }: { params: { 
         </div>
       </div>
 
+      {/* ── Analytics section ──────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {/* Token efficiency */}
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${ORANGE}20` }}>
+              <Zap className="w-4 h-4" style={{ color: ORANGE }} />
+            </div>
+            <h2 className="font-mono text-sm font-semibold text-white">Tokens</h2>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {[
+              { label: 'Achetés', value: tokensBought.toLocaleString(), color: '#34d399' },
+              { label: 'Utilisés', value: tokensUsed.toLocaleString(), color: ORANGE },
+              { label: "Taux d'usage", value: `${usageRatePct}%`, color: '#a78bfa' },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-white/[0.03] border border-white/[0.05] p-3 text-center">
+                <p className="text-lg font-bold font-mono" style={{ color: item.color }}>{item.value}</p>
+                <p className="text-white/30 text-[10px] font-mono mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${usageRatePct}%`,
+                background: `linear-gradient(90deg, ${ORANGE}, #ff9a5c)`,
+              }}
+            />
+          </div>
+          <p className="font-mono text-[10px] text-white/20 mt-2">
+            {user?.tokenBalance?.toLocaleString() ?? 0} tokens restants
+          </p>
+        </div>
+
+        {/* Conversations par connexion */}
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(167,139,250,0.15)' }}>
+              <BarChart3 className="w-4 h-4 text-purple-400" />
+            </div>
+            <h2 className="font-mono text-sm font-semibold text-white">Conversations par bot</h2>
+          </div>
+          {connections.length === 0 ? (
+            <div className="py-6 text-center">
+              <p className="text-white/30 font-mono text-xs">Aucune connexion configurée.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {connections.slice(0, 5).map((conn) => (
+                <div key={conn.id} className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-mono text-white/70 truncate max-w-[60%]">{conn.name}</span>
+                    <span className="text-[10px] font-mono text-white/30">
+                      {conn._count.conversations} conv.
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${(conn._count.conversations / maxConversations) * 100}%`,
+                        background: conn.isActive ? 'linear-gradient(90deg, #a78bfa, #7c3aed)' : 'rgba(255,255,255,0.1)',
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+              {connections.length > 5 && (
+                <p className="font-mono text-[10px] text-white/20 text-center pt-1">
+                  +{connections.length - 5} autres connexions
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Empty state */}
       {connectionsCount === 0 && (
         <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] flex flex-col items-center justify-center py-16 text-center">
@@ -289,7 +392,7 @@ export default async function DashboardPage({ params: { locale } }: { params: { 
           {[
             { label: 'Acheter des tokens', href: `/${locale}/dashboard/tokens`, desc: 'Recharger votre solde' },
             { label: 'Gérer les connexions', href: `/${locale}/dashboard/connections`, desc: 'Plateformes & bots' },
-            { label: 'Voir les analytics', href: `/${locale}/dashboard/analytics`, desc: 'Statistiques détaillées' },
+            { label: 'Voir les commandes', href: `/${locale}/dashboard/orders`, desc: 'Suivi des commandes' },
           ].map((action) => (
             <Link key={action.href} href={action.href}>
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.10] transition-all p-4 cursor-pointer group">

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, Plug, Coins, Settings, LogOut,
-  Shield, BarChart3, Bot, ChevronRight, Lock,
+  Shield, Bot, ChevronRight, Lock,
   MessageSquare, Package, ShoppingCart, Truck, Settings2,
 } from 'lucide-react';
 import { signOut, useSession } from 'next-auth/react';
@@ -49,7 +49,6 @@ export function Sidebar({
   const secondaryNavItems = [
     { href: `/${locale}/dashboard/connections`, label: t('connections'), icon: Plug, required: 'FREE' },
     { href: `/${locale}/dashboard/tokens`, label: t('tokens'), icon: Coins, required: 'FREE' },
-    { href: `/${locale}/dashboard/analytics`, label: t('analytics'), icon: BarChart3, required: 'BUSINESS' },
     { href: `/${locale}/dashboard/settings`, label: t('settings'), icon: Settings, required: 'FREE' },
   ];
 

@@ -614,7 +614,7 @@ export default function BotSettingsClient({ connections }: { connections: Connec
       {showDetailForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDetailForm(false)} />
-          <div className="relative w-full max-w-lg bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+          <div className="relative w-full max-w-lg border border-white/[0.08] rounded-2xl p-6 shadow-2xl" style={{ background: 'var(--dt-surface)' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-mono font-bold text-white text-lg">{editDetail ? t('detailEdit') : t('detailAdd')}</h2>
               <button onClick={() => setShowDetailForm(false)} className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06]"><X className="w-4 h-4" /></button>

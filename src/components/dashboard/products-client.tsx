@@ -565,7 +565,7 @@ export default function ProductsClient({
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setShowForm(false)}
           />
-          <div className="relative w-full max-w-lg bg-[#0D0D10] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="relative w-full max-w-lg border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col max-h-[90vh]" style={{ background: 'var(--dt-surface)' }}>
             <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
               <h2 className="font-mono font-bold text-white text-lg">
                 {editProduct ? t('form.editTitle') : t('form.newTitle')}
@@ -627,8 +627,8 @@ export default function ProductsClient({
                 <select
                   value={form.categoryId}
                   onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm font-mono text-white focus:outline-none focus:border-orange-500/40 appearance-none"
-                  style={{ background: 'rgba(255,255,255,0.04)' }}
+                  className="w-full px-4 py-2.5 border border-white/[0.08] rounded-xl text-sm font-mono text-white focus:outline-none focus:border-orange-500/40 appearance-none"
+                  style={{ background: 'var(--dt-card)' }}
                 >
                   <option value="">Aucune catégorie</option>
                   {categories.map(cat => (
@@ -726,7 +726,7 @@ export default function ProductsClient({
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setShowNewCategoryModal(false)}
           />
-          <div className="relative w-full max-w-sm bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+          <div className="relative w-full max-w-sm border border-white/[0.08] rounded-2xl p-6 shadow-2xl" style={{ background: 'var(--dt-surface)' }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-mono font-bold text-white">Nouvelle catégorie</h2>
               <button
@@ -793,7 +793,7 @@ export default function ProductsClient({
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setEditingCategory(null)}
           />
-          <div className="relative w-full max-w-sm bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+          <div className="relative w-full max-w-sm border border-white/[0.08] rounded-2xl p-6 shadow-2xl" style={{ background: 'var(--dt-surface)' }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-mono font-bold text-white">Modifier la catégorie</h2>
               <button
@@ -855,7 +855,7 @@ export default function ProductsClient({
       {importModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={!importing ? closeImportModal : undefined} />
-          <div className="relative w-full max-w-md bg-[#0D0D10] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+          <div className="relative w-full max-w-md border border-white/[0.08] rounded-2xl p-6 shadow-2xl" style={{ background: 'var(--dt-surface)' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-mono font-bold text-white text-lg">
                 {t('importFrom', { platform: importModal === 'woocommerce' ? 'WooCommerce' : 'Shopify' })}

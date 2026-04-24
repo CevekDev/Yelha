@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Coins, Loader2, ShoppingCart, Tag, CheckCircle, Zap,
   CreditCard, Building2, Copy, MessageCircle, Clock,
-  ArrowUpRight, ArrowDownLeft, Gift,
+  ArrowUpRight, ArrowDownLeft, Gift, TrendingUp, Check,
 } from 'lucide-react';
 
 const ORANGE = '#FF6B2C';
@@ -30,6 +30,38 @@ const TX_COLORS: Record<string, string> = {
   BONUS: '#8B5CF6',
   REFUND: '#10B981',
 };
+
+/** Generate feature list based on token count */
+function getPackageFeatures(tokens: number): string[] {
+  const approxExchanges = Math.round(tokens / 280);
+  if (tokens <= 30_000) return [
+    `≈ ${approxExchanges.toLocaleString()} échanges`,
+    '1 bot Telegram',
+    'Catalogue produits',
+    'Prise de commandes',
+  ];
+  if (tokens <= 100_000) return [
+    `≈ ${approxExchanges.toLocaleString()} échanges`,
+    'Bots illimités',
+    'Intégration Ecotrack',
+    'Import CSV produits',
+    'Support prioritaire',
+  ];
+  if (tokens <= 300_000) return [
+    `≈ ${approxExchanges.toLocaleString()} échanges`,
+    'Bots illimités',
+    'Toutes intégrations',
+    'Vue d\'ensemble avancée',
+    'Support premium',
+  ];
+  return [
+    `≈ ${approxExchanges.toLocaleString()}+ échanges`,
+    'Bots illimités',
+    'Tout inclus',
+    'API dédiée',
+    'Support VIP 24/7',
+  ];
+}
 
 export default function TokensPage() {
   const t = useTranslations('tokens');
@@ -82,7 +114,6 @@ export default function TokensPage() {
       });
       const data = await res.json();
       if (data.url) {
-        // Force top-level navigation to avoid iframe context issues with epay.poste.dz
         if (window.top) {
           window.top.location.href = data.url;
         } else {
@@ -133,6 +164,26 @@ export default function TokensPage() {
     window.open(`https://wa.me/${WHATSAPP_NUMBER.replace('+', '')}?text=${msg}`, '_blank');
   };
 
+  // ── Consumption stats ────────────────────────────────────────────────
+  const usageTransactions = transactions.filter((tx: any) => tx.type === 'USAGE');
+  const totalUsed = usageTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.amount), 0);
+  const totalPurchased = transactions
+    .filter((tx: any) => ['PURCHASE', 'TRIAL', 'ADMIN_GRANT', 'BONUS', 'REFUND', 'PACK_GRANT'].includes(tx.type))
+    .reduce((sum: number, tx: any) => sum + Math.max(tx.amount, 0), 0);
+  const usageRatePct = totalPurchased > 0
+    ? Math.min(Math.round((totalUsed / totalPurchased) * 100), 100)
+    : 0;
+
+  // Last 30 days usage
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  const usedLast30 = usageTransactions
+    .filter((tx: any) => new Date(tx.createdAt) >= thirtyDaysAgo)
+    .reduce((sum: number, tx: any) => sum + Math.abs(tx.amount), 0);
+
+  const creditTxs = transactions.filter((tx: any) =>
+    ['TRIAL', 'PURCHASE', 'PACK_GRANT', 'ADMIN_GRANT', 'BONUS', 'REFUND'].includes(tx.type)
+  );
+
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
@@ -144,19 +195,68 @@ export default function TokensPage() {
       {/* Balance card */}
       <div
         className="rounded-2xl p-6 flex items-center gap-5 border border-white/[0.06]"
-        style={{ background: `linear-gradient(135deg, ${ORANGE}18 0%, #1a0a00 100%)` }}
+        style={{ background: `linear-gradient(135deg, ${ORANGE}15 0%, var(--dt-card) 100%)` }}
       >
         <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}25` }}>
           <Coins className="w-8 h-8" style={{ color: ORANGE }} />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-white/50 text-sm font-mono">{t('balance')}</p>
           <p className="text-4xl font-bold font-mono text-white mt-0.5">
             {unlimited ? '∞' : balance.toLocaleString()}
           </p>
           <p className="text-white/30 text-xs mt-1">{unlimited ? 'Tokens illimités' : 'tokens disponibles'}</p>
         </div>
+        {!unlimited && balance > 0 && (
+          <div className="hidden sm:flex flex-col items-end gap-1">
+            <p className="font-mono text-xs text-white/30">≈ messages restants</p>
+            <p className="font-mono text-xl font-bold text-white">{Math.round(balance / 280).toLocaleString()}</p>
+          </div>
+        )}
       </div>
+
+      {/* ── Token consumption stats ── */}
+      {(totalUsed > 0 || totalPurchased > 0) && (
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${ORANGE}20` }}>
+              <TrendingUp className="w-4 h-4" style={{ color: ORANGE }} />
+            </div>
+            <h2 className="font-mono font-semibold text-white text-sm">Consommation de tokens</h2>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            {[
+              { label: 'Achetés (total)', value: totalPurchased.toLocaleString(), color: '#34d399' },
+              { label: 'Utilisés (total)', value: totalUsed.toLocaleString(), color: ORANGE },
+              { label: '30 derniers jours', value: usedLast30.toLocaleString(), color: '#a78bfa' },
+              { label: "Taux d'usage", value: `${usageRatePct}%`, color: '#60a5fa' },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-white/[0.03] border border-white/[0.05] p-3 text-center">
+                <p className="text-lg font-bold font-mono" style={{ color: item.color }}>{item.value}</p>
+                <p className="font-mono text-[10px] text-white/30 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex justify-between font-mono text-[10px] text-white/30">
+              <span>0</span>
+              <span>Utilisation</span>
+              <span>{totalPurchased.toLocaleString()}</span>
+            </div>
+            <div className="h-2.5 bg-white/[0.06] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${usageRatePct}%`,
+                  background: `linear-gradient(90deg, ${ORANGE}, #ff9a5c)`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Buy tokens section */}
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
@@ -173,7 +273,7 @@ export default function TokensPage() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xs font-semibold transition-all"
               style={paymentTab === 'chargily'
                 ? { background: `${ORANGE}25`, color: ORANGE }
-                : { color: 'rgba(255,255,255,0.4)' }}
+                : { color: 'var(--dt-text-40)' }}
             >
               <CreditCard className="w-3.5 h-3.5" />
               Carte (CIB / Edahabia)
@@ -183,7 +283,7 @@ export default function TokensPage() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xs font-semibold transition-all"
               style={paymentTab === 'ccp'
                 ? { background: '#3B82F625', color: '#3B82F6' }
-                : { color: 'rgba(255,255,255,0.4)' }}
+                : { color: 'var(--dt-text-40)' }}
             >
               <Building2 className="w-3.5 h-3.5" />
               Versement CCP
@@ -205,40 +305,57 @@ export default function TokensPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {packages.map((pkg: any) => (
-                    <div
-                      key={pkg.id}
-                      className="rounded-xl border flex flex-col overflow-hidden"
-                      style={{
-                        borderColor: pkg.isFeatured ? `${ORANGE}60` : 'rgba(255,255,255,0.06)',
-                        background: pkg.isFeatured ? `${ORANGE}08` : 'rgba(255,255,255,0.02)',
-                      }}
-                    >
-                      {pkg.isFeatured && (
-                        <div className="text-[10px] font-mono font-bold text-center py-1.5 text-white tracking-wider uppercase" style={{ background: ORANGE }}>
-                          ★ Populaire
+                  {packages.map((pkg: any) => {
+                    const features = getPackageFeatures(pkg.tokens);
+                    return (
+                      <div
+                        key={pkg.id}
+                        className="rounded-xl border flex flex-col overflow-hidden"
+                        style={{
+                          borderColor: pkg.isFeatured ? `${ORANGE}60` : 'var(--dt-border)',
+                          background: pkg.isFeatured ? `${ORANGE}08` : 'var(--dt-card)',
+                        }}
+                      >
+                        {pkg.isFeatured && (
+                          <div className="text-[10px] font-mono font-bold text-center py-1.5 text-white tracking-wider uppercase" style={{ background: ORANGE }}>
+                            ★ Populaire
+                          </div>
+                        )}
+                        <div className="p-4 flex flex-col flex-1">
+                          <p className="font-mono font-bold text-white text-sm">{pkg.name}</p>
+                          <p className="text-white/40 text-xs mt-0.5">{pkg.tokens.toLocaleString()} tokens</p>
+                          <p className="text-2xl font-bold font-mono mt-3" style={{ color: pkg.isFeatured ? ORANGE : 'var(--dt-text)' }}>
+                            {pkg.price.toLocaleString('fr-FR')} <span className="text-sm font-normal text-white/40">DA</span>
+                          </p>
+
+                          {/* Feature list */}
+                          <ul className="mt-3 mb-4 space-y-1.5">
+                            {features.map((feat) => (
+                              <li key={feat} className="flex items-center gap-1.5">
+                                <Check
+                                  className="w-3 h-3 flex-shrink-0"
+                                  style={{ color: pkg.isFeatured ? ORANGE : '#34d399' }}
+                                />
+                                <span className="font-mono text-[11px] text-white/60">{feat}</span>
+                              </li>
+                            ))}
+                          </ul>
+
+                          <button
+                            onClick={() => handlePurchase(pkg.id)}
+                            disabled={!!loadingPkg}
+                            className="mt-auto w-full flex items-center justify-center gap-1.5 font-mono text-xs py-2.5 rounded-lg transition-all hover:opacity-90 disabled:opacity-40"
+                            style={pkg.isFeatured
+                              ? { background: ORANGE, color: '#fff' }
+                              : { background: 'rgba(255,255,255,0.06)', color: 'var(--dt-text-80)', border: '1px solid var(--dt-border-2)' }}
+                          >
+                            {loadingPkg === pkg.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShoppingCart className="w-3.5 h-3.5" />}
+                            Payer
+                          </button>
                         </div>
-                      )}
-                      <div className="p-4 flex flex-col flex-1">
-                        <p className="font-mono font-bold text-white text-sm">{pkg.name}</p>
-                        <p className="text-white/40 text-xs mt-0.5">{pkg.tokens.toLocaleString()} tokens</p>
-                        <p className="text-2xl font-bold font-mono mt-3 mb-4" style={{ color: pkg.isFeatured ? ORANGE : 'white' }}>
-                          {pkg.price.toLocaleString('fr-FR')} <span className="text-sm font-normal text-white/40">DA</span>
-                        </p>
-                        <button
-                          onClick={() => handlePurchase(pkg.id)}
-                          disabled={!!loadingPkg}
-                          className="mt-auto w-full flex items-center justify-center gap-1.5 font-mono text-xs py-2.5 rounded-lg transition-all hover:opacity-90 disabled:opacity-40"
-                          style={pkg.isFeatured
-                            ? { background: ORANGE, color: '#fff' }
-                            : { background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }}
-                        >
-                          {loadingPkg === pkg.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShoppingCart className="w-3.5 h-3.5" />}
-                          Payer
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>
@@ -248,10 +365,30 @@ export default function TokensPage() {
           {paymentTab === 'ccp' && (
             <div className="space-y-5">
               <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-xl p-4">
-                <p className="font-mono text-xs text-blue-300/80 leading-relaxed">
+                <p className="font-mono text-xs text-blue-400 leading-relaxed">
                   Effectuez un versement CCP au numéro ci-dessous, puis envoyez votre reçu via WhatsApp.
                   Votre compte sera crédité dans les <strong>24h ouvrées</strong>.
                 </p>
+              </div>
+
+              {/* Pack prices reminder */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {packages.map((pkg: any) => (
+                  <div
+                    key={pkg.id}
+                    className="rounded-xl p-3 text-center border"
+                    style={{
+                      background: pkg.isFeatured ? `${ORANGE}08` : 'var(--dt-card)',
+                      borderColor: pkg.isFeatured ? `${ORANGE}40` : 'var(--dt-border)',
+                    }}
+                  >
+                    <p className="font-mono text-xs font-bold text-white">{pkg.name}</p>
+                    <p className="font-mono text-[10px] text-white/40 mt-0.5">{pkg.tokens.toLocaleString()} tokens</p>
+                    <p className="font-mono text-sm font-bold mt-1.5" style={{ color: pkg.isFeatured ? ORANGE : 'var(--dt-text-80)' }}>
+                      {pkg.price.toLocaleString('fr-FR')} DA
+                    </p>
+                  </div>
+                ))}
               </div>
 
               {/* Steps */}
@@ -260,7 +397,7 @@ export default function TokensPage() {
                   {
                     n: '01',
                     title: 'Choisissez votre pack',
-                    desc: 'Starter 2 500 DA · Business 5 000 DA · Pro 10 000 DA · Agency 22 000 DA',
+                    desc: 'Sélectionnez le montant correspondant à votre pack ci-dessus.',
                   },
                   {
                     n: '02',
@@ -277,8 +414,8 @@ export default function TokensPage() {
                 ].map(step => (
                   <div key={step.n} className="flex items-start gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                     <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold text-white flex-shrink-0"
-                      style={{ background: '#3B82F625', border: '1px solid #3B82F630', color: '#3B82F6' }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold flex-shrink-0"
+                      style={{ background: '#3B82F615', border: '1px solid #3B82F630', color: '#3B82F6' }}
                     >
                       {step.n}
                     </div>
@@ -289,7 +426,7 @@ export default function TokensPage() {
                       {step.ccp && (
                         <div className="mt-2 space-y-2">
                           <div
-                            className="w-full px-3 py-2 rounded-lg font-mono text-sm font-bold text-white border break-all"
+                            className="w-full px-3 py-2.5 rounded-lg font-mono text-sm font-bold text-white border break-all"
                             style={{ background: '#3B82F615', borderColor: '#3B82F630', letterSpacing: '0.04em' }}
                           >
                             {CCP_NUMBER}
@@ -299,7 +436,7 @@ export default function TokensPage() {
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-mono text-xs transition-all"
                             style={copied
                               ? { background: '#10B98120', color: '#10B981' }
-                              : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+                              : { background: 'var(--dt-card)', color: 'var(--dt-text-60)', border: '1px solid var(--dt-border)' }}
                           >
                             {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                             {copied ? 'Copié !' : 'Copier le numéro'}
@@ -345,7 +482,8 @@ export default function TokensPage() {
               onChange={e => setPromoCode(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === 'Enter' && handlePromoApply()}
               placeholder="YELHA-XXXXXX"
-              className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#FF6B2C]/50 transition-colors"
+              className="flex-1 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#FF6B2C]/50 transition-colors"
+              style={{ background: 'var(--dt-card)' }}
             />
             <button
               onClick={handlePromoApply}
@@ -359,15 +497,15 @@ export default function TokensPage() {
         )}
       </div>
 
-      {/* Transaction history — credits only (hide usage debits) */}
-      {transactions.filter((tx: any) => ['TRIAL', 'PURCHASE', 'PACK_GRANT', 'ADMIN_GRANT', 'BONUS', 'REFUND'].includes(tx.type)).length > 0 && (
+      {/* Transaction history — credits only */}
+      {creditTxs.length > 0 && (
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
           <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
             <Clock className="w-4 h-4 text-white/30" />
             <h2 className="font-mono font-semibold text-white text-sm">Historique des recharges</h2>
           </div>
           <div className="divide-y divide-white/[0.04]">
-            {transactions.filter((tx: any) => ['TRIAL', 'PURCHASE', 'PACK_GRANT', 'ADMIN_GRANT', 'BONUS', 'REFUND'].includes(tx.type)).map((tx: any) => {
+            {creditTxs.map((tx: any) => {
               const Icon = TX_ICONS[tx.type] || Coins;
               const color = TX_COLORS[tx.type] || ORANGE;
               const isDebit = tx.amount < 0;

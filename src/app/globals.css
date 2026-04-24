@@ -79,6 +79,7 @@ html {
   --dt-border-2:  rgba(255,255,255,0.08);
   --dt-text:      #ffffff;
   --dt-text-80:   rgba(255,255,255,0.80);
+  --dt-text-70:   rgba(255,255,255,0.70);
   --dt-text-60:   rgba(255,255,255,0.60);
   --dt-text-50:   rgba(255,255,255,0.50);
   --dt-text-40:   rgba(255,255,255,0.40);
@@ -90,12 +91,13 @@ html {
 [data-dash-theme="light"] {
   --dt-bg:        #f1f5f9;
   --dt-surface:   #ffffff;
-  --dt-card:      rgba(15,23,42,0.02);
-  --dt-hover:     rgba(15,23,42,0.04);
+  --dt-card:      rgba(15,23,42,0.03);
+  --dt-hover:     rgba(15,23,42,0.05);
   --dt-border:    rgba(15,23,42,0.07);
-  --dt-border-2:  rgba(15,23,42,0.10);
+  --dt-border-2:  rgba(15,23,42,0.11);
   --dt-text:      #0f172a;
   --dt-text-80:   rgba(15,23,42,0.80);
+  --dt-text-70:   rgba(15,23,42,0.70);
   --dt-text-60:   rgba(15,23,42,0.65);
   --dt-text-50:   rgba(15,23,42,0.55);
   --dt-text-40:   rgba(15,23,42,0.45);
@@ -104,15 +106,17 @@ html {
   --dt-text-10:   rgba(15,23,42,0.12);
 }
 
+/* ── Colorful = vivid purple theme ── */
 [data-dash-theme="colorful"] {
-  --dt-bg:        #eef2ff;
-  --dt-surface:   #f5f3ff;
-  --dt-card:      rgba(99,102,241,0.05);
-  --dt-hover:     rgba(99,102,241,0.09);
-  --dt-border:    rgba(99,102,241,0.13);
-  --dt-border-2:  rgba(99,102,241,0.20);
-  --dt-text:      #1e1b4b;
+  --dt-bg:        #f3e8ff;         /* purple-100 — main content area */
+  --dt-surface:   #ede9fe;         /* violet-100 — sidebar & card surfaces, clearly purple */
+  --dt-card:      rgba(124,58,237,0.08);
+  --dt-hover:     rgba(124,58,237,0.14);
+  --dt-border:    rgba(124,58,237,0.18);
+  --dt-border-2:  rgba(124,58,237,0.28);
+  --dt-text:      #1e1b4b;         /* indigo-950 */
   --dt-text-80:   rgba(30,27,75,0.85);
+  --dt-text-70:   rgba(30,27,75,0.75);
   --dt-text-60:   rgba(30,27,75,0.70);
   --dt-text-50:   rgba(30,27,75,0.60);
   --dt-text-40:   rgba(30,27,75,0.50);
@@ -184,4 +188,28 @@ html {
 [data-dash-theme="light"] .dash-main [class*="divide-white/"],
 [data-dash-theme="colorful"] .dash-main [class*="divide-white/"] {
   border-color: var(--dt-border) !important;
+}
+
+/* ── Colorful sidebar accent — deeper purple pill ── */
+[data-dash-theme="colorful"] .dash-main {
+  background: var(--dt-bg);
+}
+
+/* Colorful: vivid card backgrounds for stat panels */
+[data-dash-theme="colorful"] .dash-main [class*="rounded-2xl"][class*="bg-white/"] {
+  background: rgba(124,58,237,0.06) !important;
+  border-color: rgba(124,58,237,0.16) !important;
+}
+
+/* light/colorful: keep blue accent text (CCP instructions) readable */
+[data-dash-theme="light"] .dash-main [class*="text-blue-"],
+[data-dash-theme="colorful"] .dash-main [class*="text-blue-"] {
+  color: revert !important;
+}
+
+/* select option elements — ensure readable in all themes */
+[data-dash-theme="light"] .dash-main select option,
+[data-dash-theme="colorful"] .dash-main select option {
+  background: var(--dt-surface);
+  color: var(--dt-text);
 }
