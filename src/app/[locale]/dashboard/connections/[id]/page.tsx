@@ -179,7 +179,7 @@ export default function ConnectionConfigPage() {
               placeholder={"Alger: 400\nOran: 500\nAnnaba: 550\nAutres: 700"}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Si une compagnie de livraison (Ecotrack) est connectée, le prix est fourni automatiquement par leur API et ce tableau est ignoré.
+              ⚠️ Ecotrack ne fournit <strong>pas</strong> les tarifs automatiquement. Renseignez les frais ci-dessus — le bot les inclura dans chaque récapitulatif de commande.
             </p>
           </div>
           <div>
